@@ -1,0 +1,209 @@
+import { useEffect, useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
+import ReactFlow, {
+  Node,
+  Edge,
+  Controls,
+  Background,
+  BackgroundVariant,
+  useNodesState,
+  useEdgesState,
+  NodeTypes,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import { Header } from '@/components/Header';
+import { ImageNode, ImageNodeData } from '@/components/ImageNode';
+import { useSceneImagesStore } from '@/stores/useSceneImagesStore';
+import { useScenesStore } from '@/stores/useScenesStore';
+import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useGenerationStore } from '@/stores/useGenerationStore';
+import { SettingsDialog } from '@/components/SettingsDialog';
+import { ImageDialog } from '@/components/ImageDialog';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
+import * as storage from '@/hooks/useStorage';
+
+const nodeTypes: NodeTypes = {
+  imageNode: ImageNode,
+};
+
+export function SceneCanvasPage() {
+  const { sceneId } = useParams<{ projectId: string; sceneId: string }>();
+  const { scenes } = useScenesStore();
+  const { images, loadImagesByScene, createImage } = useSceneImagesStore();
+  const { loadSettings } = useSettingsStore();
+  const { loadResultsByImage } = useGenerationStore();
+  
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+
+  const scene = scenes.find(s => s.id === sceneId);
+
+  useEffect(() => {
+    if (sceneId) {
+      loadImagesByScene(sceneId);
+      loadSettings();
+    }
+  }, [sceneId, loadImagesByScene, loadSettings]);
+
+  useEffect(() => {
+    const newNodes: Node<ImageNodeData>[] = [];
+    const newEdges: Edge[] = [];
+    
+    const spacing = 300;
+    
+    // Start node
+    newNodes.push({
+      id: 'start',
+      type: 'input',
+      data: { label: 'Start' } as any,
+      position: { x: 0, y: 200 },
+      draggable: false,
+      style: {
+        background: '#1f2937',
+        color: 'white',
+        border: '1px solid #374151',
+      },
+    });
+
+    // Image nodes
+    images.forEach((image, index) => {
+      const nodeId = `image-${image.id}`;
+      
+      // Get thumbnail from generation results
+      const results = storage.getGenerationResultsByImage(image.id);
+      let thumbnail: string | undefined;
+      if (results.length > 0) {
+        const selectedResult = results.find((_, idx) => idx === image.selectedOutputIndex) || results[0];
+        thumbnail = selectedResult?.outputs[0];
+      }
+      
+      newNodes.push({
+        id: nodeId,
+        type: 'imageNode',
+        data: { ...image, thumbnail },
+        position: { x: spacing * (index + 1), y: 200 },
+      });
+
+      // Connect from previous node
+      const sourceId = index === 0 ? 'start' : `image-${images[index - 1].id}`;
+      newEdges.push({
+        id: `edge-${sourceId}-${nodeId}`,
+        source: sourceId,
+        target: nodeId,
+        type: 'smoothstep',
+        style: { stroke: '#4b5563' },
+      });
+    });
+
+    // End node
+    const endId = 'end';
+    newNodes.push({
+      id: endId,
+      type: 'output',
+      data: { label: 'End' } as any,
+      position: { x: spacing * (images.length + 1), y: 200 },
+      draggable: false,
+      style: {
+        background: '#1f2937',
+        color: 'white',
+        border: '1px solid #374151',
+      },
+    });
+
+    // Connect last image to end
+    const lastImageId = images.length > 0 ? `image-${images[images.length - 1].id}` : 'start';
+    newEdges.push({
+      id: `edge-${lastImageId}-${endId}`,
+      source: lastImageId,
+      target: endId,
+      type: 'smoothstep',
+      style: { stroke: '#4b5563' },
+    });
+
+    setNodes(newNodes);
+    setEdges(newEdges);
+  }, [images, setNodes, setEdges]);
+
+  const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    if (node.id.startsWith('image-')) {
+      const imageId = node.id.replace('image-', '');
+      setSelectedImageId(imageId);
+      loadResultsByImage(imageId);
+      setShowImageDialog(true);
+    }
+  }, [loadResultsByImage]);
+
+  const handleAddImage = () => {
+    if (sceneId) {
+      const newImage = createImage(sceneId, 'New Image');
+      setSelectedImageId(newImage.id);
+      loadResultsByImage(newImage.id);
+      setShowImageDialog(true);
+    }
+  };
+
+  if (!scene) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-500">Scene not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen flex flex-col">
+      <Header
+        title={scene.title}
+        showBack
+        onSettingsClick={() => setShowSettingsDialog(true)}
+      />
+      
+      <div className="flex-1 relative">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeClick={handleNodeClick}
+          nodeTypes={nodeTypes}
+          fitView
+          minZoom={0.1}
+          maxZoom={2}
+        >
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
+          <Controls />
+        </ReactFlow>
+
+        {/* Add image button */}
+        <div className="absolute bottom-8 right-8">
+          <Button
+            size="lg"
+            onClick={handleAddImage}
+            className="shadow-lg"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add Image
+          </Button>
+        </div>
+      </div>
+
+      <SettingsDialog
+        open={showSettingsDialog}
+        onOpenChange={setShowSettingsDialog}
+      />
+
+      {selectedImageId && (
+        <ImageDialog
+          open={showImageDialog}
+          onOpenChange={setShowImageDialog}
+          imageId={selectedImageId}
+        />
+      )}
+    </div>
+  );
+}
+
