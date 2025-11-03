@@ -13,6 +13,12 @@ export interface GenerateImageOptions {
   outputFormat?: OutputFormat;
 }
 
+interface WavespeedAPIResponse {
+  code: number;
+  message: string;
+  data: PredictionResponse;
+}
+
 export async function generateImage(options: GenerateImageOptions): Promise<PredictionResponse> {
   const {
     prompt,
@@ -46,7 +52,7 @@ export async function generateImage(options: GenerateImageOptions): Promise<Pred
   };
 
   try {
-    const response = await axios.post<PredictionResponse>(
+    const response = await axios.post<WavespeedAPIResponse>(
       `${API_BASE_URL}${QWEN_EDIT_ENDPOINT}`,
       request,
       {
@@ -57,7 +63,26 @@ export async function generateImage(options: GenerateImageOptions): Promise<Pred
       }
     );
 
-    return response.data;
+    // Wavespeed API wraps the response in { code, message, data }
+    if (response.data.code !== 200) {
+      throw new Error(response.data.message || 'API request failed');
+    }
+
+    const predictionData = response.data.data;
+    
+    // Convert base64 strings to data URIs
+    if (predictionData.outputs && predictionData.outputs.length > 0) {
+      predictionData.outputs = predictionData.outputs.map((output) => {
+        // Check if it's already a data URI
+        if (output.startsWith('data:')) {
+          return output;
+        }
+        // Convert base64 to data URI
+        return `data:image/${outputFormat};base64,${output}`;
+      });
+    }
+
+    return predictionData;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       const message = error.response?.data?.message || error.message;
