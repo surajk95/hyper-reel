@@ -9,10 +9,12 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   NodeTypes,
+  EdgeTypes,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Header } from '@/components/Header';
 import { ImageNode, ImageNodeData } from '@/components/ImageNode';
+import { InsertEdge } from '@/components/InsertEdge';
 import { useSceneImagesStore } from '@/stores/useSceneImagesStore';
 import { useScenesStore } from '@/stores/useScenesStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -27,12 +29,16 @@ const nodeTypes: NodeTypes = {
   imageNode: ImageNode,
 };
 
+const edgeTypes: EdgeTypes = {
+  insertEdge: InsertEdge,
+};
+
 export function SceneCanvasPage() {
   const { sceneId } = useParams<{ projectId: string; sceneId: string }>();
   const { scenes } = useScenesStore();
-  const { images, loadImagesByScene, createImage } = useSceneImagesStore();
+  const { images, loadImagesByScene, createImage, insertImage } = useSceneImagesStore();
   const { loadSettings } = useSettingsStore();
-  const { loadResultsByImage } = useGenerationStore();
+  const { loadResultsByImage, results } = useGenerationStore();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -49,13 +55,23 @@ export function SceneCanvasPage() {
     }
   }, [sceneId, loadImagesByScene, loadSettings]);
 
+  // Reload results when images change to update thumbnails
+  useEffect(() => {
+    images.forEach(image => {
+      const results = storage.getGenerationResultsByImage(image.id);
+      if (results.length > 0) {
+        loadResultsByImage(image.id);
+      }
+    });
+  }, [images]);
+
   useEffect(() => {
     const newNodes: Node<ImageNodeData>[] = [];
     const newEdges: Edge[] = [];
     
     const spacing = 300;
     
-    // Start node
+    // Start node - small green circle
     newNodes.push({
       id: 'start',
       type: 'input',
@@ -63,9 +79,16 @@ export function SceneCanvasPage() {
       position: { x: 0, y: 200 },
       draggable: false,
       style: {
-        background: '#1f2937',
+        background: '#22c55e',
         color: 'white',
-        border: '1px solid #374151',
+        border: '2px solid #16a34a',
+        borderRadius: '50%',
+        width: '60px',
+        height: '60px',
+        fontSize: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       },
     });
 
@@ -77,8 +100,10 @@ export function SceneCanvasPage() {
       const results = storage.getGenerationResultsByImage(image.id);
       let thumbnail: string | undefined;
       if (results.length > 0) {
-        const selectedResult = results.find((_, idx) => idx === image.selectedOutputIndex) || results[0];
-        thumbnail = selectedResult?.outputs[0];
+        const selectedResult = results[image.selectedOutputIndex];
+        if (selectedResult && selectedResult.outputs.length > 0) {
+          thumbnail = selectedResult.outputs[0];
+        }
       }
       
       newNodes.push({
@@ -88,18 +113,28 @@ export function SceneCanvasPage() {
         position: { x: spacing * (index + 1), y: 200 },
       });
 
-      // Connect from previous node
+      // Connect from previous node with insert functionality
       const sourceId = index === 0 ? 'start' : `image-${images[index - 1].id}`;
       newEdges.push({
         id: `edge-${sourceId}-${nodeId}`,
         source: sourceId,
         target: nodeId,
-        type: 'smoothstep',
-        style: { stroke: '#4b5563' },
+        type: 'insertEdge',
+        data: {
+          onInsert: () => {
+            if (sceneId) {
+              const position = index === 0 ? -1 : images[index - 1].position;
+              const newImage = insertImage(sceneId, 'New Image', position);
+              setSelectedImageId(newImage.id);
+              loadResultsByImage(newImage.id);
+              setShowImageDialog(true);
+            }
+          }
+        },
       });
     });
 
-    // End node
+    // End node - small red circle
     const endId = 'end';
     newNodes.push({
       id: endId,
@@ -108,25 +143,42 @@ export function SceneCanvasPage() {
       position: { x: spacing * (images.length + 1), y: 200 },
       draggable: false,
       style: {
-        background: '#1f2937',
+        background: '#ef4444',
         color: 'white',
-        border: '1px solid #374151',
+        border: '2px solid #dc2626',
+        borderRadius: '50%',
+        width: '60px',
+        height: '60px',
+        fontSize: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       },
     });
 
-    // Connect last image to end
+    // Connect last image to end with insert functionality
     const lastImageId = images.length > 0 ? `image-${images[images.length - 1].id}` : 'start';
+    const lastPosition = images.length > 0 ? images[images.length - 1].position : -1;
     newEdges.push({
       id: `edge-${lastImageId}-${endId}`,
       source: lastImageId,
       target: endId,
-      type: 'smoothstep',
-      style: { stroke: '#4b5563' },
+      type: 'insertEdge',
+      data: {
+        onInsert: () => {
+          if (sceneId) {
+            const newImage = insertImage(sceneId, 'New Image', lastPosition);
+            setSelectedImageId(newImage.id);
+            loadResultsByImage(newImage.id);
+            setShowImageDialog(true);
+          }
+        }
+      },
     });
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [images, setNodes, setEdges]);
+  }, [images, results]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     if (node.id.startsWith('image-')) {
@@ -134,8 +186,20 @@ export function SceneCanvasPage() {
       setSelectedImageId(imageId);
       loadResultsByImage(imageId);
       setShowImageDialog(true);
+    } else if (node.id === 'start' && sceneId) {
+      // Insert at start
+      const newImage = createImage(sceneId, 'New Image', 0);
+      setSelectedImageId(newImage.id);
+      loadResultsByImage(newImage.id);
+      setShowImageDialog(true);
+    } else if (node.id === 'end' && sceneId) {
+      // Insert at end
+      const newImage = createImage(sceneId, 'New Image');
+      setSelectedImageId(newImage.id);
+      loadResultsByImage(newImage.id);
+      setShowImageDialog(true);
     }
-  }, [loadResultsByImage]);
+  }, [loadResultsByImage, sceneId, createImage]);
 
   const handleAddImage = () => {
     if (sceneId) {
@@ -170,6 +234,7 @@ export function SceneCanvasPage() {
           onEdgesChange={onEdgesChange}
           onNodeClick={handleNodeClick}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           minZoom={0.1}
           maxZoom={2}

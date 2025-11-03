@@ -5,6 +5,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from './ui/popover';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
@@ -19,7 +24,7 @@ import { useSceneImagesStore } from '@/stores/useSceneImagesStore';
 import { useGenerationStore } from '@/stores/useGenerationStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { FullscreenImage } from './FullscreenImage';
-import { Plus, X, Loader2, Check } from 'lucide-react';
+import { Plus, X, Loader2, Check, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import * as wavespeed from '@/services/wavespeed';
 import { OutputFormat } from '@/types';
@@ -47,7 +52,8 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
   const [customSize, setCustomSize] = useState('');
   const [seed, setSeed] = useState(-1);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('jpeg');
-  const [newResults, setNewResults] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState('Qwen Edit');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     if (open && image) {
@@ -65,7 +71,7 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
       setCustomSize('');
       setSeed(-1);
       setOutputFormat('jpeg');
-      setNewResults([]);
+      setSelectedModel('Qwen Edit');
     }
   }, [open]);
 
@@ -133,7 +139,6 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
     }
 
     setGenerating(true);
-    setNewResults([]);
 
     try {
       const size = selectedSize === 'custom' ? customSize : selectedSize;
@@ -149,7 +154,7 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
 
       if (response.outputs && response.outputs.length > 0) {
         // Add generation result to store
-        addResult({
+        const newResult = {
           imageId,
           outputs: response.outputs,
           prompt: prompt.trim(),
@@ -158,14 +163,19 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
           size,
           outputFormat,
           timestamp: Date.now(),
-        });
-
-        setNewResults(response.outputs);
+        };
+        
+        addResult(newResult);
 
         toast({
           title: 'Generation Complete',
           description: `Generated ${response.outputs.length} image(s)`,
         });
+
+        // Auto-select the first output if no selection yet
+        if (!image?.selectedOutputIndex && image?.selectedOutputIndex !== 0) {
+          updateImage(imageId, { selectedOutputIndex: 0 });
+        }
       } else {
         throw new Error('No outputs received from API');
       }
@@ -192,256 +202,242 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
   const handleTitleChange = () => {
     if (title.trim() && title !== image?.title) {
       updateImage(imageId, { title: title.trim() });
-      toast({
-        title: 'Title Updated',
-      });
     }
   };
 
   if (!image) return null;
 
-  const hasResults = results.length > 0 || newResults.length > 0;
-  const allResults = [...results];
-  
-  // Get selected image
+  const hasResults = results.length > 0;
   const selectedResult = results[image.selectedOutputIndex];
   const selectedOutput = selectedResult?.outputs[0];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Image Generation</DialogTitle>
+          <DialogTitle className="space-y-2">
+            <p className="text-sm font-medium text-gray-400">Title</p>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleChange}
+              placeholder="Image title"
+              className="text-base"
+            />
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Title */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Title</label>
-            <div className="flex gap-2">
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onBlur={handleTitleChange}
-                placeholder="Image title"
-              />
-            </div>
-          </div>
-
           {/* Preview Section - Only if has results */}
           {hasResults && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium">Preview</h3>
-              
-              {/* Current selected image */}
-              {selectedOutput && (
-                <div className="rounded-lg border border-gray-800 p-4">
-                  <p className="text-xs text-gray-500 mb-2">Currently Selected</p>
-                  <FullscreenImage
-                    src={selectedOutput}
-                    alt={image.title}
-                    className="w-full rounded-lg"
-                  />
-                </div>
-              )}
+            <div className="flex gap-4">
+              {/* Left: Current selected image - smaller */}
+              <div className="w-48 flex-shrink-0">
+                {selectedOutput && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-400">Currently Selected</p>
+                    <FullscreenImage
+                      src={selectedOutput}
+                      alt={image.title}
+                      className="w-full aspect-square object-cover rounded-lg border border-gray-700"
+                    />
+                  </div>
+                )}
+              </div>
 
-              {/* All generation results */}
-              <div className="space-y-4">
-                <p className="text-sm text-gray-400">All Generated Images</p>
-                {allResults.map((result, resultIdx) => (
-                  <div key={result.timestamp} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-gray-500">
-                        {new Date(result.timestamp).toLocaleString()}
-                      </p>
-                      <p className="text-xs text-gray-500">{result.prompt.slice(0, 50)}...</p>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {result.outputs.map((output, outputIdx) => (
-                        <div key={outputIdx} className="relative group">
-                          <FullscreenImage
-                            src={output}
-                            alt={`Generation ${resultIdx}-${outputIdx}`}
-                            className="w-full aspect-square object-cover rounded-lg"
-                          />
+              {/* Right: All generation results */}
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-medium">All Generated Images</p>
+                <div className="grid grid-cols-6 gap-2 max-h-80 overflow-y-auto pr-2">
+                  {results.map((result, resultIdx) => (
+                    result.outputs.map((output, outputIdx) => (
+                      <div key={`${result.timestamp}-${outputIdx}`} className="relative group">
+                        <FullscreenImage
+                          src={output}
+                          alt={`Generation ${resultIdx}-${outputIdx}`}
+                          className="w-full aspect-square object-cover rounded border border-gray-700 hover:border-gray-500 transition-colors"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
                           <Button
                             size="sm"
-                            className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                            variant={image.selectedOutputIndex === resultIdx && outputIdx === 0 ? 'default' : 'secondary'}
                             onClick={() => handleSelectOutput(resultIdx)}
+                            className="text-xs px-2 py-1 h-auto"
                           >
                             {image.selectedOutputIndex === resultIdx ? (
-                              <><Check className="h-4 w-4 mr-1" /> Selected</>
+                              <><Check className="h-3 w-3 mr-1" /> Selected</>
                             ) : (
                               'Select'
                             )}
                           </Button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Show new results */}
-              {newResults.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs text-gray-500">New Generation</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {newResults.map((output, outputIdx) => (
-                      <div key={outputIdx} className="relative group">
-                        <FullscreenImage
-                          src={output}
-                          alt={`New generation ${outputIdx}`}
-                          className="w-full aspect-square object-cover rounded-lg"
-                        />
-                        <Button
-                          size="sm"
-                          className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => handleSelectOutput(0)}
-                        >
-                          Select
-                        </Button>
                       </div>
-                    ))}
-                  </div>
+                    ))
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
           {/* Generation Section */}
-          <div className="space-y-4 border-t border-gray-800 pt-4">
-            <h3 className="text-sm font-medium">
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-gray-400">
               {hasResults ? 'Generate New' : 'Generate'}
-            </h3>
+            </p>
 
-            {/* Prompt */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Prompt</label>
-              <Textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe what you want to generate..."
-                rows={4}
-              />
-            </div>
+            {/* Main Input Container - Grok style with proper vertical centering */}
+            <div className="border border-gray-700 rounded-lg p-3 bg-gray-900/30 hover:border-gray-600 transition-colors">
+              <div className="flex gap-3 items-center">
+                {/* Left: Input Images */}
+                <div className="flex gap-1.5 flex-shrink-0">
+                  {inputImages.map((img, idx) => (
+                    <div key={idx} className="relative group w-12 h-12">
+                      <img
+                        src={img}
+                        alt={`Input ${idx + 1}`}
+                        className="w-full h-full object-cover rounded border border-gray-700"
+                      />
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="absolute -top-1 -right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity p-0"
+                        onClick={() => handleRemoveImage(idx)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  {inputImages.length < 3 && (
+                    <label className="w-12 h-12 border-2 border-dashed border-gray-700 rounded flex items-center justify-center cursor-pointer hover:border-gray-500 transition-colors flex-shrink-0">
+                      <Plus className="h-5 w-5 text-gray-500" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                    </label>
+                  )}
+                </div>
 
-            {/* Input Images */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Input Images (Max 3)</label>
-              <div className="grid grid-cols-4 gap-2">
-                {inputImages.map((img, idx) => (
-                  <div key={idx} className="relative group aspect-square">
-                    <img
-                      src={img}
-                      alt={`Input ${idx + 1}`}
-                      className="w-full h-full object-cover rounded-lg"
-                    />
-                    <Button
-                      size="icon"
-                      variant="destructive"
-                      className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => handleRemoveImage(idx)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                {inputImages.length < 3 && (
-                  <label className="aspect-square border-2 border-dashed border-gray-700 rounded-lg flex items-center justify-center cursor-pointer hover:border-gray-600 transition-colors">
-                    <Plus className="h-8 w-8 text-gray-600" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="hidden"
-                      onChange={handleFileUpload}
-                    />
-                  </label>
-                )}
-              </div>
-            </div>
-
-            {/* Model (locked) */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Model</label>
-              <Input value="Qwen Edit" disabled />
-            </div>
-
-            {/* Size */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Size</label>
-              <div className="flex gap-2">
-                <Select value={selectedSize} onValueChange={setSelectedSize}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SIZE_OPTIONS.map(size => (
-                      <SelectItem key={size} value={size}>
-                        {size === 'custom' ? 'Custom' : size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedSize === 'custom' && (
-                  <Input
-                    placeholder="1024*1024"
-                    value={customSize}
-                    onChange={(e) => setCustomSize(e.target.value)}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Advanced */}
-            <details className="space-y-2">
-              <summary className="text-sm font-medium cursor-pointer">Advanced Options</summary>
-              <div className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <label className="text-sm">Seed (-1 for random)</label>
-                  <Input
-                    type="number"
-                    value={seed}
-                    onChange={(e) => setSeed(parseInt(e.target.value))}
+                {/* Center: Prompt */}
+                <div className="flex-1">
+                  <Textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Describe what you want to generate..."
+                    rows={2}
+                    className="focus-visible:ring-0 bg-transparent resize-none text-base placeholder:text-gray-500 px-5 py-2.5 border border-[#651ac4] rounded-md"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm">Output Format</label>
-                  <Select value={outputFormat} onValueChange={(v) => setOutputFormat(v as OutputFormat)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="jpeg">JPEG</SelectItem>
-                      <SelectItem value="png">PNG</SelectItem>
-                      <SelectItem value="webp">WebP</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+                {/* Right: Controls */}
+                <div className="flex gap-2 items-center flex-shrink-0">
+                  {/* Advanced Settings Popover */}
+                  <Popover open={showAdvanced} onOpenChange={setShowAdvanced}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9"
+                        title="Advanced Settings"
+                      >
+                        <Settings className="h-4 w-4 text-gray-400" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80" align="end">
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm">Advanced Settings</h4>
+                        
+                        {/* Model Selector */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Model</label>
+                          <Select value={selectedModel} onValueChange={setSelectedModel}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Qwen Edit">Qwen Edit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Size */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Size</label>
+                          <div className="flex gap-2">
+                            <Select value={selectedSize} onValueChange={setSelectedSize}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SIZE_OPTIONS.map(size => (
+                                  <SelectItem key={size} value={size}>
+                                    {size === 'custom' ? 'Custom' : size}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {selectedSize === 'custom' && (
+                              <Input
+                                placeholder="1024*1024"
+                                value={customSize}
+                                onChange={(e) => setCustomSize(e.target.value)}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Seed */}
+                        <div className="space-y-2">
+                          <label className="text-sm">Seed (-1 for random)</label>
+                          <Input
+                            type="number"
+                            value={seed}
+                            onChange={(e) => setSeed(parseInt(e.target.value))}
+                          />
+                        </div>
+
+                        {/* Output Format */}
+                        <div className="space-y-2">
+                          <label className="text-sm">Output Format</label>
+                          <Select value={outputFormat} onValueChange={(v) => setOutputFormat(v as OutputFormat)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="jpeg">JPEG</SelectItem>
+                              <SelectItem value="png">PNG</SelectItem>
+                              <SelectItem value="webp">WebP</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Generate Button */}
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !prompt.trim() || inputImages.length === 0}
+                    className="px-6 h-9"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating
+                      </>
+                    ) : (
+                      'Generate'
+                    )}
+                  </Button>
                 </div>
               </div>
-            </details>
-
-            {/* Generate Button */}
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating || !prompt.trim() || inputImages.length === 0}
-              className="w-full"
-              size="lg"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                'Generate'
-              )}
-            </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-

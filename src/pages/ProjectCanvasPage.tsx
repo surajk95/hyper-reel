@@ -9,10 +9,12 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   NodeTypes,
+  EdgeTypes,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Header } from '@/components/Header';
 import { SceneNode, SceneNodeData } from '@/components/SceneNode';
+import { InsertEdge } from '@/components/InsertEdge';
 import { useScenesStore } from '@/stores/useScenesStore';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -30,6 +32,10 @@ import { Plus } from 'lucide-react';
 
 const nodeTypes: NodeTypes = {
   sceneNode: SceneNode,
+};
+
+const edgeTypes: EdgeTypes = {
+  insertEdge: InsertEdge,
 };
 
 export function ProjectCanvasPage() {
@@ -63,7 +69,7 @@ export function ProjectCanvasPage() {
     
     const spacing = 300;
     
-    // Start node
+    // Start node - small green circle
     newNodes.push({
       id: 'start',
       type: 'input',
@@ -71,9 +77,16 @@ export function ProjectCanvasPage() {
       position: { x: 0, y: 200 },
       draggable: false,
       style: {
-        background: '#1f2937',
+        background: '#22c55e',
         color: 'white',
-        border: '1px solid #374151',
+        border: '2px solid #16a34a',
+        borderRadius: '50%',
+        width: '60px',
+        height: '60px',
+        fontSize: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       },
     });
 
@@ -87,18 +100,26 @@ export function ProjectCanvasPage() {
         position: { x: spacing * (index + 1), y: 200 },
       });
 
-      // Connect from previous node
+      // Connect from previous node with insert functionality
       const sourceId = index === 0 ? 'start' : `scene-${scenes[index - 1].id}`;
       newEdges.push({
         id: `edge-${sourceId}-${nodeId}`,
         source: sourceId,
         target: nodeId,
-        type: 'smoothstep',
-        style: { stroke: '#4b5563' },
+        type: 'insertEdge',
+        data: {
+          onInsert: () => {
+            if (projectId) {
+              const position = index === 0 ? -1 : scenes[index - 1].position;
+              setInsertPosition(position);
+              setShowNewSceneDialog(true);
+            }
+          }
+        },
       });
     });
 
-    // End node
+    // End node - small red circle
     const endId = 'end';
     newNodes.push({
       id: endId,
@@ -107,20 +128,35 @@ export function ProjectCanvasPage() {
       position: { x: spacing * (scenes.length + 1), y: 200 },
       draggable: false,
       style: {
-        background: '#1f2937',
+        background: '#ef4444',
         color: 'white',
-        border: '1px solid #374151',
+        border: '2px solid #dc2626',
+        borderRadius: '50%',
+        width: '60px',
+        height: '60px',
+        fontSize: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       },
     });
 
-    // Connect last scene to end
+    // Connect last scene to end with insert functionality
     const lastSceneId = scenes.length > 0 ? `scene-${scenes[scenes.length - 1].id}` : 'start';
+    const lastPosition = scenes.length > 0 ? scenes[scenes.length - 1].position : -1;
     newEdges.push({
       id: `edge-${lastSceneId}-${endId}`,
       source: lastSceneId,
       target: endId,
-      type: 'smoothstep',
-      style: { stroke: '#4b5563' },
+      type: 'insertEdge',
+      data: {
+        onInsert: () => {
+          if (projectId) {
+            setInsertPosition(lastPosition);
+            setShowNewSceneDialog(true);
+          }
+        }
+      },
     });
 
     setNodes(newNodes);
@@ -178,6 +214,7 @@ export function ProjectCanvasPage() {
           onEdgesChange={onEdgesChange}
           onNodeClick={handleNodeClick}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView
           minZoom={0.1}
           maxZoom={2}

@@ -40,22 +40,26 @@ npm run dev
 - Click Create
 
 ### 3. Add a Scene
-- You'll see a canvas with Start and End nodes
+- You'll see a canvas with Start (green) and End (red) nodes
 - Click "Add Scene" button (bottom right)
+- OR hover over connectors between nodes and click the "+" button to insert
 - Enter a scene name
 
 ### 4. Generate Your First Image
 - Click the scene node to enter it
-- Click "Add Image" button
-- In the dialog:
-  - Upload 1-3 reference images (click the + box)
-  - Write a prompt describing what you want
-  - Adjust size if needed (default: 1024*1024)
+- Click "Add Image" button, or click Start/End nodes, or hover over connectors
+- In the compact generation row:
+  - Upload 1-3 reference images (click the + box for small thumbnails)
+  - Write a prompt in the text area
+  - Model is locked to "Qwen Edit"
+  - Click the gear icon for advanced settings (size, seed, format)
   - Click "Generate"
 
 ### 5. Select and Manage Images
-- After generation, click "Select" on your preferred output
-- All previous generations remain available
+- After generation, all outputs appear in a grid on the right
+- Hover over any thumbnail and click "Select" to use it
+- The currently selected image shows on the left
+- All previous generations remain available in the grid
 - Click any image to view fullscreen
 - Download from fullscreen mode
 
