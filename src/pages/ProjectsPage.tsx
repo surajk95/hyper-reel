@@ -39,23 +39,25 @@ export function ProjectsPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-full flex flex-col">
       <Header onSettingsClick={() => setShowSettingsDialog(true)} />
       
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          <ProjectCard
-            isNew
-            onClick={() => setShowNewProjectDialog(true)}
-          />
-          
-          {projects.map((project) => (
+      <main className="flex-1 overflow-y-auto">
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
             <ProjectCard
-              key={project.id}
-              project={project}
-              onClick={() => navigate(`/project/${project.id}`)}
+              isNew
+              onClick={() => setShowNewProjectDialog(true)}
             />
-          ))}
+            
+            {projects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onClick={() => navigate(`/project/${project.id}`)}
+              />
+            ))}
+          </div>
         </div>
       </main>
 

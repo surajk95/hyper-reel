@@ -6,6 +6,16 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -33,12 +43,14 @@ interface ImageDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   imageId: string;
+  isNewImage?: boolean;
+  onCancelNew?: () => void;
 }
 
 const SIZE_OPTIONS = ['512*512', '1024*1024', '1536*1536', 'custom'];
 
-export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
-  const { images, updateImage } = useSceneImagesStore();
+export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, onCancelNew }: ImageDialogProps) {
+  const { images, updateImage, deleteImage } = useSceneImagesStore();
   const { results, loadResultsByImage, addResult, isGenerating, setGenerating } = useGenerationStore();
   const { getApiKey } = useSettingsStore();
   const { toast } = useToast();
@@ -54,6 +66,8 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('jpeg');
   const [selectedModel, setSelectedModel] = useState('Qwen Edit');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [hasGeneratedInSession, setHasGeneratedInSession] = useState(false);
 
   useEffect(() => {
     if (open && image) {
@@ -62,8 +76,24 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
     }
   }, [open, image, imageId, loadResultsByImage]);
 
+  // Auto-load settings when results are loaded
   useEffect(() => {
-    if (!open) {
+    if (open && image && results.length > 0 && image.selectedOutputIndex !== undefined) {
+      const selectedResult = results[image.selectedOutputIndex];
+      if (selectedResult) {
+        setPrompt(selectedResult.prompt);
+        setInputImages(selectedResult.inputImages);
+        setSelectedSize(selectedResult.size);
+        setSeed(selectedResult.seed);
+        setOutputFormat(selectedResult.outputFormat as OutputFormat);
+      }
+    }
+  }, [open, image, results]);
+
+  useEffect(() => {
+    if (open) {
+      setHasGeneratedInSession(false);
+    } else {
       // Reset generation form when closed
       setPrompt('');
       setInputImages([]);
@@ -72,6 +102,7 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
       setSeed(-1);
       setOutputFormat('jpeg');
       setSelectedModel('Qwen Edit');
+      setShowCloseConfirm(false);
     }
   }, [open]);
 
@@ -167,6 +198,8 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
         
         addResult(newResult);
 
+        setHasGeneratedInSession(true);
+
         toast({
           title: 'Generation Complete',
           description: `Generated ${response.outputs.length} image(s)`,
@@ -174,7 +207,7 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
 
         // Auto-select the first output if no selection yet
         if (!image?.selectedOutputIndex && image?.selectedOutputIndex !== 0) {
-          updateImage(imageId, { selectedOutputIndex: 0 });
+          updateImage(imageId, { selectedOutputIndex: 0, prompt: prompt.trim() });
         }
       } else {
         throw new Error('No outputs received from API');
@@ -192,7 +225,11 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
   };
 
   const handleSelectOutput = (resultIndex: number) => {
-    updateImage(imageId, { selectedOutputIndex: resultIndex });
+    const selectedResult = results[resultIndex];
+    updateImage(imageId, { 
+      selectedOutputIndex: resultIndex,
+      prompt: selectedResult?.prompt 
+    });
     toast({
       title: 'Image Selected',
       description: 'This image will be used for the scene',
@@ -205,6 +242,37 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
     }
   };
 
+  const handleCloseRequest = (open: boolean) => {
+    // If trying to open, just pass through
+    if (open) {
+      onOpenChange(open);
+      return;
+    }
+    
+    // If trying to close and it's a new image with generated content, ask for confirmation
+    if (isNewImage && hasGeneratedInSession) {
+      setShowCloseConfirm(true);
+      return;
+    }
+    
+    // Otherwise close normally
+    // If closing a new image without generation, delete it
+    if (isNewImage && !hasGeneratedInSession && onCancelNew) {
+      deleteImage(imageId);
+    }
+    onOpenChange(false);
+  };
+
+  const handleConfirmClose = () => {
+    setShowCloseConfirm(false);
+    // Don't delete the image if it has generated content
+    onOpenChange(false);
+  };
+
+  const handleCancelClose = () => {
+    setShowCloseConfirm(false);
+  };
+
   if (!image) return null;
 
   const hasResults = results.length > 0;
@@ -212,8 +280,9 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
   const selectedOutput = selectedResult?.outputs[0];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+    <>
+      <Dialog open={open} onOpenChange={handleCloseRequest}>
+        <DialogContent className="w-[90vw] h-[90vh] max-w-none overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="space-y-2">
             <p className="text-sm font-medium text-gray-400">Title</p>
@@ -230,39 +299,41 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
         <div className="space-y-6">
           {/* Preview Section - Only if has results */}
           {hasResults && (
-            <div className="flex gap-4">
-              {/* Left: Current selected image - smaller */}
-              <div className="w-48 flex-shrink-0">
-                {selectedOutput && (
+            <div className="flex gap-6 h-[calc(90vh-300px)]">
+              {/* Left: Current selected image - 50% width */}
+              <div className="w-1/2 flex-shrink-0">
+                {selectedOutput && selectedResult && (
                   <div className="space-y-2">
-                    <p className="text-xs text-gray-400">Currently Selected</p>
-                    <FullscreenImage
-                      src={selectedOutput}
-                      alt={image.title}
-                      className="w-full aspect-square object-cover rounded-lg border border-gray-700"
-                    />
+                    <p className="text-sm font-medium text-gray-400">Currently Selected</p>
+                    <div className="flex items-center justify-center">
+                      <FullscreenImage
+                        src={selectedOutput}
+                        alt={image.title}
+                        className="max-w-full max-h-[50vh] object-contain rounded-lg border border-gray-700"
+                      />
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Right: All generation results */}
-              <div className="flex-1 space-y-2">
+              {/* Right: All generation results - 50% width */}
+              <div className="w-1/2 flex-shrink-0 space-y-2 flex flex-col">
                 <p className="text-sm font-medium">All Generated Images</p>
-                <div className="grid grid-cols-6 gap-2 max-h-80 overflow-y-auto pr-2">
-                  {results.map((result, resultIdx) => (
-                    result.outputs.map((output, outputIdx) => (
-                      <div key={`${result.timestamp}-${outputIdx}`} className="relative group">
-                        <FullscreenImage
-                          src={output}
-                          alt={`Generation ${resultIdx}-${outputIdx}`}
-                          className="w-full aspect-square object-cover rounded border border-gray-700 hover:border-gray-500 transition-colors"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <div className="flex-1 overflow-y-auto pr-2">
+                  <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, 200px)' }}>
+                    {results.map((result, resultIdx) => (
+                      result.outputs.map((output, outputIdx) => (
+                        <div key={`${result.timestamp}-${outputIdx}`} className="space-y-1">
+                          <FullscreenImage
+                            src={output}
+                            alt={`Generation ${resultIdx}-${outputIdx}`}
+                            className="w-[200px] h-[200px] object-cover rounded border border-gray-700 hover:border-gray-500 transition-colors"
+                          />
                           <Button
                             size="sm"
                             variant={image.selectedOutputIndex === resultIdx && outputIdx === 0 ? 'default' : 'secondary'}
                             onClick={() => handleSelectOutput(resultIdx)}
-                            className="text-xs px-2 py-1 h-auto"
+                            className="text-xs px-2 py-1 h-auto w-full"
                           >
                             {image.selectedOutputIndex === resultIdx ? (
                               <><Check className="h-3 w-3 mr-1" /> Selected</>
@@ -271,16 +342,16 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
                             )}
                           </Button>
                         </div>
-                      </div>
-                    ))
-                  ))}
+                      ))
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {/* Generation Section */}
-          <div className="space-y-3">
+          <div className="space-y-3" data-generation-section>
             <p className="text-sm font-medium text-gray-400">
               {hasResults ? 'Generate New' : 'Generate'}
             </p>
@@ -439,5 +510,25 @@ export function ImageDialog({ open, onOpenChange, imageId }: ImageDialogProps) {
         </div>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Discard Changes?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You have generated images in this session. Closing will keep the node but you'll lose any unsaved work. Are you sure you want to close?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleCancelClose}>
+            Continue Editing
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmClose}>
+            Close Anyway
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

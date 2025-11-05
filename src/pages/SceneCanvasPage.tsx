@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 import { useParams } from 'react-router-dom';
 import ReactFlow, {
   Node,
@@ -10,6 +10,9 @@ import ReactFlow, {
   useEdgesState,
   NodeTypes,
   EdgeTypes,
+  NodeProps,
+  Handle,
+  Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Header } from '@/components/Header';
@@ -23,10 +26,50 @@ import { SettingsDialog } from '@/components/SettingsDialog';
 import { ImageDialog } from '@/components/ImageDialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import * as storage from '@/hooks/useStorage';
+
+// Custom Start/End nodes with hover effect
+const StartNode = memo(({ data }: NodeProps<{ label: string }>) => {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  return (
+    <div className="relative">
+      <div
+        className="bg-green-500 text-white border-2 border-green-600 rounded-full w-[60px] h-[60px] text-xs flex items-center justify-center cursor-pointer hover:bg-green-600 transition-colors"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {isHovered ? 'Add' : data.label}
+      </div>
+      <Handle type="source" position={Position.Right} className="!bg-gray-500" />
+    </div>
+  );
+});
+StartNode.displayName = 'StartNode';
+
+const EndNode = memo(({ data }: NodeProps<{ label: string }>) => {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  return (
+    <div className="relative">
+      <Handle type="target" position={Position.Left} className="!bg-gray-500" />
+      <div
+        className="bg-red-500 text-white border-2 border-red-600 rounded-full w-[60px] h-[60px] text-xs flex items-center justify-center cursor-pointer hover:bg-red-600 transition-colors"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {isHovered ? 'Add' : data.label}
+      </div>
+    </div>
+  );
+});
+EndNode.displayName = 'EndNode';
 
 const nodeTypes: NodeTypes = {
   imageNode: ImageNode,
+  startNode: StartNode,
+  endNode: EndNode,
 };
 
 const edgeTypes: EdgeTypes = {
@@ -35,25 +78,28 @@ const edgeTypes: EdgeTypes = {
 
 export function SceneCanvasPage() {
   const { sceneId } = useParams<{ projectId: string; sceneId: string }>();
-  const { scenes } = useScenesStore();
-  const { images, loadImagesByScene, createImage, insertImage } = useSceneImagesStore();
+  const { scenes, loadScenes } = useScenesStore();
+  const { images, loadImagesByScene, createImage, insertImage, updateImage, deleteImage } = useSceneImagesStore();
   const { loadSettings } = useSettingsStore();
   const { loadResultsByImage, results } = useGenerationStore();
+  const { toast } = useToast();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+  const [isNewImage, setIsNewImage] = useState(false);
 
   const scene = scenes.find(s => s.id === sceneId);
 
   useEffect(() => {
+    loadScenes();
     if (sceneId) {
       loadImagesByScene(sceneId);
       loadSettings();
     }
-  }, [sceneId, loadImagesByScene, loadSettings]);
+  }, [sceneId, loadScenes, loadImagesByScene, loadSettings]);
 
   // Reload results when images change to update thumbnails
   useEffect(() => {
@@ -63,7 +109,37 @@ export function SceneCanvasPage() {
         loadResultsByImage(image.id);
       }
     });
-  }, [images]);
+  }, [images, loadResultsByImage]);
+
+  // Define handleDeleteNode before it's used in useEffect
+  const handleDeleteNode = useCallback((imageId: string) => {
+    // Check if the node has any generated images
+    const results = storage.getGenerationResultsByImage(imageId);
+    const hasGeneratedImages = results.length > 0;
+    
+    // Skip confirmation if no generated images
+    if (!hasGeneratedImages) {
+      deleteImage(imageId);
+      toast({
+        title: 'Node Deleted',
+        description: 'The image node has been removed',
+      });
+      return;
+    }
+    
+    // Show confirmation if has generated images
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this image node? This action cannot be undone.'
+    );
+    
+    if (confirmed) {
+      deleteImage(imageId);
+      toast({
+        title: 'Node Deleted',
+        description: 'The image node has been removed',
+      });
+    }
+  }, [deleteImage, toast]);
 
   useEffect(() => {
     const newNodes: Node<ImageNodeData>[] = [];
@@ -74,22 +150,10 @@ export function SceneCanvasPage() {
     // Start node - small green circle
     newNodes.push({
       id: 'start',
-      type: 'input',
-      data: { label: 'Start' } as any,
+      type: 'startNode',
+      data: { label: 'Start' },
       position: { x: 0, y: 200 },
       draggable: false,
-      style: {
-        background: '#22c55e',
-        color: 'white',
-        border: '2px solid #16a34a',
-        borderRadius: '50%',
-        width: '60px',
-        height: '60px',
-        fontSize: '12px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      },
     });
 
     // Image nodes
@@ -109,7 +173,7 @@ export function SceneCanvasPage() {
       newNodes.push({
         id: nodeId,
         type: 'imageNode',
-        data: { ...image, thumbnail },
+        data: { ...image, thumbnail, onDelete: handleDeleteNode },
         position: { x: spacing * (index + 1), y: 200 },
       });
 
@@ -126,6 +190,7 @@ export function SceneCanvasPage() {
               const position = index === 0 ? -1 : images[index - 1].position;
               const newImage = insertImage(sceneId, 'New Image', position);
               setSelectedImageId(newImage.id);
+              setIsNewImage(true);
               loadResultsByImage(newImage.id);
               setShowImageDialog(true);
             }
@@ -138,22 +203,10 @@ export function SceneCanvasPage() {
     const endId = 'end';
     newNodes.push({
       id: endId,
-      type: 'output',
-      data: { label: 'End' } as any,
+      type: 'endNode',
+      data: { label: 'End' },
       position: { x: spacing * (images.length + 1), y: 200 },
       draggable: false,
-      style: {
-        background: '#ef4444',
-        color: 'white',
-        border: '2px solid #dc2626',
-        borderRadius: '50%',
-        width: '60px',
-        height: '60px',
-        fontSize: '12px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      },
     });
 
     // Connect last image to end with insert functionality
@@ -169,6 +222,7 @@ export function SceneCanvasPage() {
           if (sceneId) {
             const newImage = insertImage(sceneId, 'New Image', lastPosition);
             setSelectedImageId(newImage.id);
+            setIsNewImage(true);
             loadResultsByImage(newImage.id);
             setShowImageDialog(true);
           }
@@ -178,24 +232,27 @@ export function SceneCanvasPage() {
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [images, results]);
+  }, [images, results, handleDeleteNode, sceneId, insertImage, loadResultsByImage, setIsNewImage, setSelectedImageId, setShowImageDialog]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     if (node.id.startsWith('image-')) {
       const imageId = node.id.replace('image-', '');
       setSelectedImageId(imageId);
+      setIsNewImage(false);
       loadResultsByImage(imageId);
       setShowImageDialog(true);
     } else if (node.id === 'start' && sceneId) {
       // Insert at start
       const newImage = createImage(sceneId, 'New Image', 0);
       setSelectedImageId(newImage.id);
+      setIsNewImage(true);
       loadResultsByImage(newImage.id);
       setShowImageDialog(true);
     } else if (node.id === 'end' && sceneId) {
       // Insert at end
       const newImage = createImage(sceneId, 'New Image');
       setSelectedImageId(newImage.id);
+      setIsNewImage(true);
       loadResultsByImage(newImage.id);
       setShowImageDialog(true);
     }
@@ -205,9 +262,15 @@ export function SceneCanvasPage() {
     if (sceneId) {
       const newImage = createImage(sceneId, 'New Image');
       setSelectedImageId(newImage.id);
+      setIsNewImage(true);
       loadResultsByImage(newImage.id);
       setShowImageDialog(true);
     }
+  };
+
+  const handleCancelNewImage = () => {
+    // This will be called if a new image is cancelled
+    loadImagesByScene(sceneId!);
   };
 
   if (!scene) {
@@ -219,7 +282,7 @@ export function SceneCanvasPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col">
       <Header
         title={scene.title}
         showBack
@@ -266,6 +329,8 @@ export function SceneCanvasPage() {
           open={showImageDialog}
           onOpenChange={setShowImageDialog}
           imageId={selectedImageId}
+          isNewImage={isNewImage}
+          onCancelNew={handleCancelNewImage}
         />
       )}
     </div>

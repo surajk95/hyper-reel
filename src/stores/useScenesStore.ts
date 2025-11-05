@@ -4,6 +4,7 @@ import * as storage from '@/hooks/useStorage';
 
 interface ScenesState {
   scenes: Scene[];
+  loadScenes: () => void;
   loadScenesByProject: (projectId: string) => void;
   createScene: (projectId: string, title: string, position?: number) => Scene;
   insertScene: (projectId: string, title: string, afterPosition: number) => Scene;
@@ -13,6 +14,11 @@ interface ScenesState {
 
 export const useScenesStore = create<ScenesState>((set) => ({
   scenes: [],
+  
+  loadScenes: () => {
+    const scenes = storage.getScenes();
+    set({ scenes });
+  },
   
   loadScenesByProject: (projectId: string) => {
     const scenes = storage.getScenesByProject(projectId);

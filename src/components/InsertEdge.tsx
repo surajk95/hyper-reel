@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { EdgeProps, getBezierPath } from 'reactflow';
-import { Plus } from 'lucide-react';
 
 export function InsertEdge({
   id,
@@ -56,13 +55,15 @@ export function InsertEdge({
             className="cursor-pointer hover:fill-gray-700 transition-colors"
             onClick={handleClick}
           />
-          <Plus
-            x="-6"
-            y="-6"
-            width="12"
-            height="12"
-            className="text-white pointer-events-none"
+          <g transform="translate(-6, -6)">
+            <path
+              d="M6 0v12M0 6h12"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              className="pointer-events-none"
           />
+          </g>
         </g>
       )}
     </>

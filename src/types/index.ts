@@ -21,6 +21,7 @@ export interface SceneImage {
   title: string;
   position: number;
   selectedOutputIndex: number; // which generation result is selected
+  prompt?: string; // prompt used to generate the selected image
   createdAt: number;
 }
 

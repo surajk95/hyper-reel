@@ -29,6 +29,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import * as storage from '@/hooks/useStorage';
 
 const nodeTypes: NodeTypes = {
   sceneNode: SceneNode,
@@ -41,9 +43,10 @@ const edgeTypes: EdgeTypes = {
 export function ProjectCanvasPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { projects } = useProjectsStore();
-  const { scenes, loadScenesByProject, createScene, insertScene } = useScenesStore();
+  const { projects, loadProjects } = useProjectsStore();
+  const { scenes, loadScenesByProject, createScene, insertScene, deleteScene } = useScenesStore();
   const { loadSettings } = useSettingsStore();
+  const { toast } = useToast();
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -55,11 +58,42 @@ export function ProjectCanvasPage() {
   const project = projects.find(p => p.id === projectId);
 
   useEffect(() => {
+    loadProjects();
     if (projectId) {
       loadScenesByProject(projectId);
       loadSettings();
     }
-  }, [projectId, loadScenesByProject, loadSettings]);
+  }, [projectId, loadProjects, loadScenesByProject, loadSettings]);
+
+  // Delete handler for scene nodes
+  const handleDeleteScene = useCallback((sceneId: string) => {
+    // Check if the scene has any images
+    const sceneImages = storage.getImagesByScene(sceneId);
+    const hasImages = sceneImages.length > 0;
+    
+    // Skip confirmation if no images
+    if (!hasImages) {
+      deleteScene(sceneId);
+      toast({
+        title: 'Scene Deleted',
+        description: 'The scene has been removed',
+      });
+      return;
+    }
+    
+    // Show confirmation if has images
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this scene? This will also delete all images in the scene. This action cannot be undone.'
+    );
+    
+    if (confirmed) {
+      deleteScene(sceneId);
+      toast({
+        title: 'Scene Deleted',
+        description: 'The scene and its images have been removed',
+      });
+    }
+  }, [deleteScene, toast]);
 
   useEffect(() => {
     if (!scenes.length) return;
@@ -96,7 +130,7 @@ export function ProjectCanvasPage() {
       newNodes.push({
         id: nodeId,
         type: 'sceneNode',
-        data: scene,
+        data: { ...scene, onDelete: handleDeleteScene },
         position: { x: spacing * (index + 1), y: 200 },
       });
 
@@ -161,7 +195,7 @@ export function ProjectCanvasPage() {
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [scenes, setNodes, setEdges]);
+  }, [scenes, handleDeleteScene, projectId, insertScene, setShowNewSceneDialog, setInsertPosition, setNodes, setEdges]);
 
   const handleNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
     if (node.id.startsWith('scene-')) {
@@ -199,7 +233,7 @@ export function ProjectCanvasPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col">
       <Header
         title={project.title}
         showBack
