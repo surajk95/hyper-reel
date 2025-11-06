@@ -52,6 +52,23 @@ export interface GenerationRequest {
   size: string;
 }
 
+export interface LoraConfig {
+  path: string;
+  scale: number;
+}
+
+export interface GenerationRequestWan22 {
+  enable_base64_output: boolean;
+  enable_sync_mode: boolean;
+  loras: LoraConfig[];
+  high_noise_loras: LoraConfig[];
+  low_noise_loras: LoraConfig[];
+  output_format: OutputFormat;
+  prompt: string;
+  seed: number;
+  size: string;
+}
+
 export interface PredictionResponse {
   created_at: string;
   has_nsfw_contents?: boolean[];

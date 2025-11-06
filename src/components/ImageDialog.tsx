@@ -60,7 +60,7 @@ export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, o
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [inputImages, setInputImages] = useState<string[]>([]);
-  const [selectedSize, setSelectedSize] = useState('1024*1024');
+  const [selectedSize, setSelectedSize] = useState('1536*1536');
   const [customSize, setCustomSize] = useState('');
   const [seed, setSeed] = useState(-1);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>('jpeg');
@@ -97,7 +97,7 @@ export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, o
       // Reset generation form when closed
       setPrompt('');
       setInputImages([]);
-      setSelectedSize('1024*1024');
+      setSelectedSize('1536*1536');
       setCustomSize('');
       setSeed(-1);
       setOutputFormat('jpeg');
@@ -160,7 +160,8 @@ export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, o
       return;
     }
 
-    if (inputImages.length === 0) {
+    // Only require images for Qwen Edit model
+    if (selectedModel === 'Qwen Edit' && inputImages.length === 0) {
       toast({
         title: 'Images Required',
         description: 'Please upload at least one image',
@@ -174,14 +175,28 @@ export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, o
     try {
       const size = selectedSize === 'custom' ? customSize : selectedSize;
       
-      const response = await wavespeed.generateImage({
-        prompt: prompt.trim(),
-        images: inputImages,
-        apiKey,
-        size,
-        seed,
-        outputFormat,
-      });
+      let response;
+      
+      if (selectedModel === 'Wan 2.2') {
+        // Use wan2-2 text-to-image endpoint
+        response = await wavespeed.generateImageWan22({
+          prompt: prompt.trim(),
+          apiKey,
+          size,
+          seed,
+          outputFormat,
+        });
+      } else {
+        // Use Qwen Edit endpoint
+        response = await wavespeed.generateImage({
+          prompt: prompt.trim(),
+          images: inputImages,
+          apiKey,
+          size,
+          seed,
+          outputFormat,
+        });
+      }
 
       if (response.outputs && response.outputs.length > 0) {
         // Add generation result to store
@@ -189,7 +204,7 @@ export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, o
           imageId,
           outputs: response.outputs,
           prompt: prompt.trim(),
-          inputImages,
+          inputImages: selectedModel === 'Wan 2.2' ? [] : inputImages,
           seed,
           size,
           outputFormat,
@@ -359,38 +374,40 @@ export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, o
             {/* Main Input Container - Grok style with proper vertical centering */}
             <div className="border border-gray-700 rounded-lg p-3 bg-gray-900/30 hover:border-gray-600 transition-colors">
               <div className="flex gap-3 items-center">
-                {/* Left: Input Images */}
-                <div className="flex gap-1.5 flex-shrink-0">
-                  {inputImages.map((img, idx) => (
-                    <div key={idx} className="relative group w-12 h-12">
-                      <img
-                        src={img}
-                        alt={`Input ${idx + 1}`}
-                        className="w-full h-full object-cover rounded border border-gray-700"
-                      />
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        className="absolute -top-1 -right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity p-0"
-                        onClick={() => handleRemoveImage(idx)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                  {inputImages.length < 3 && (
-                    <label className="w-12 h-12 border-2 border-dashed border-gray-700 rounded flex items-center justify-center cursor-pointer hover:border-gray-500 transition-colors flex-shrink-0">
-                      <Plus className="h-5 w-5 text-gray-500" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileUpload}
-                      />
-                    </label>
-                  )}
-                </div>
+                {/* Left: Input Images - Only show for Qwen Edit */}
+                {selectedModel === 'Qwen Edit' && (
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    {inputImages.map((img, idx) => (
+                      <div key={idx} className="relative group w-12 h-12">
+                        <img
+                          src={img}
+                          alt={`Input ${idx + 1}`}
+                          className="w-full h-full object-cover rounded border border-gray-700"
+                        />
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="absolute -top-1 -right-1 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity p-0"
+                          onClick={() => handleRemoveImage(idx)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    {inputImages.length < 3 && (
+                      <label className="w-12 h-12 border-2 border-dashed border-gray-700 rounded flex items-center justify-center cursor-pointer hover:border-gray-500 transition-colors flex-shrink-0">
+                        <Plus className="h-5 w-5 text-gray-500" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={handleFileUpload}
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
 
                 {/* Center: Prompt */}
                 <div className="flex-1">
@@ -430,6 +447,7 @@ export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, o
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="Qwen Edit">Qwen Edit</SelectItem>
+                              <SelectItem value="Wan 2.2">Wan 2.2</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -491,7 +509,7 @@ export function ImageDialog({ open, onOpenChange, imageId, isNewImage = false, o
                   {/* Generate Button */}
                   <Button
                     onClick={handleGenerate}
-                    disabled={isGenerating || !prompt.trim() || inputImages.length === 0}
+                    disabled={isGenerating || !prompt.trim() || (selectedModel === 'Qwen Edit' && inputImages.length === 0)}
                     className="px-6 h-9"
                   >
                     {isGenerating ? (
