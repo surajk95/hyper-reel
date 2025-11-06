@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { ProjectsPage } from './pages/ProjectsPage'
-import { ProjectCanvasPage } from './pages/ProjectCanvasPage'
-import { SceneCanvasPage } from './pages/SceneCanvasPage'
+import { ProjectPage } from './pages/ProjectPage'
 import { AppLayout } from './components/AppLayout'
 import { Toaster } from './components/ui/toaster'
 
@@ -12,8 +11,7 @@ function App() {
         <AppLayout>
           <Routes>
             <Route path="/" element={<ProjectsPage />} />
-            <Route path="/project/:projectId" element={<ProjectCanvasPage />} />
-            <Route path="/project/:projectId/scene/:sceneId" element={<SceneCanvasPage />} />
+            <Route path="/project/:projectId" element={<ProjectPage />} />
           </Routes>
         </AppLayout>
         <Toaster />

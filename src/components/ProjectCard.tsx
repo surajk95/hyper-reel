@@ -1,17 +1,24 @@
-import { Film, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { Film, Plus, Trash2 } from 'lucide-react';
 import { Project } from '@/types';
 import { cn } from '@/lib/utils';
+import { Button } from './ui/button';
 
 interface ProjectCardProps {
   project?: Project;
   isNew?: boolean;
   onClick: () => void;
+  onDelete?: (e: React.MouseEvent) => void;
 }
 
-export function ProjectCard({ project, isNew, onClick }: ProjectCardProps) {
+export function ProjectCard({ project, isNew, onClick, onDelete }: ProjectCardProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
     <button
       onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={cn(
         "group relative aspect-square rounded-lg border transition-all",
         "hover:border-gray-600 hover:shadow-lg hover:scale-105",
@@ -44,6 +51,24 @@ export function ProjectCard({ project, isNew, onClick }: ProjectCardProps) {
                 {project?.title || 'Untitled'}
               </p>
             </div>
+            
+            {/* Delete button on hover */}
+            {isHovered && onDelete && (
+              <div className="absolute top-2 right-2">
+                <Button
+                  size="icon"
+                  variant="destructive"
+                  className="h-8 w-8 opacity-90 hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(e);
+                  }}
+                  title="Delete project"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </>
         )}
       </div>

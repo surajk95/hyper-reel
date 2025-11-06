@@ -1,4 +1,4 @@
-import { Settings } from 'lucide-react';
+import { Settings, Pencil } from 'lucide-react';
 import { Button } from './ui/button';
 import { useNavigate } from 'react-router-dom';
 
@@ -6,9 +6,11 @@ interface HeaderProps {
   title?: string;
   showBack?: boolean;
   onSettingsClick?: () => void;
+  onEditTitle?: () => void;
+  showEditTitle?: boolean;
 }
 
-export function Header({ title = 'Hyper Reel', showBack = false, onSettingsClick }: HeaderProps) {
+export function Header({ title = 'Hyper Reel', showBack = false, onSettingsClick, onEditTitle, showEditTitle = false }: HeaderProps) {
   const navigate = useNavigate();
 
   return (
@@ -25,6 +27,17 @@ export function Header({ title = 'Hyper Reel', showBack = false, onSettingsClick
             </Button>
           )}
           <h1 className="text-xl font-semibold">{title}</h1>
+          {showEditTitle && onEditTitle && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onEditTitle}
+              title="Rename project"
+              className="h-8 w-8"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         
         <Button

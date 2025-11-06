@@ -6,38 +6,26 @@ export interface Project {
   updatedAt: number;
 }
 
-export interface Scene {
+export type MediaType = 'generation' | 'upload';
+
+export interface MediaItem {
   id: string;
   projectId: string;
-  title: string;
-  position: number; // order in sequence
-  selectedImageId?: string;
+  type: MediaType;
+  imageData: string; // base64 data URI
+  prompt?: string;
+  modelId?: string;
+  size?: string;
+  seed?: number;
+  outputFormat?: OutputFormat;
+  inputImageIds?: string[]; // references to other MediaItem IDs
   createdAt: number;
-}
-
-export interface SceneImage {
-  id: string;
-  sceneId: string;
-  title: string;
-  position: number;
-  selectedOutputIndex: number; // which generation result is selected
-  prompt?: string; // prompt used to generate the selected image
-  createdAt: number;
-}
-
-export interface GenerationResult {
-  imageId: string;
-  outputs: string[]; // base64 images from API
-  prompt: string;
-  inputImages: string[]; // base64
-  seed: number;
-  size: string;
-  outputFormat: string;
-  timestamp: number;
+  updatedAt: number;
 }
 
 export interface Settings {
   wavespeedApiKey?: string;
+  mediaViewerSidebarCollapsed?: boolean;
 }
 
 export type OutputFormat = "jpeg" | "png" | "webp";
@@ -79,3 +67,23 @@ export interface PredictionResponse {
   urls?: object;
 }
 
+// Model Registry
+export interface ModelInfo {
+  id: string;
+  displayName: string;
+  supportsImageInput: boolean;
+}
+
+export const MODEL_REGISTRY: ModelInfo[] = [
+  { id: 'qwen-edit', displayName: 'Qwen Edit', supportsImageInput: true },
+  { id: 'wan-2.2', displayName: 'Wan 2.2', supportsImageInput: false },
+];
+
+export function getModelById(id: string): ModelInfo | undefined {
+  return MODEL_REGISTRY.find((model) => model.id === id);
+}
+
+export function getModelDisplayName(id: string): string {
+  const model = getModelById(id);
+  return model ? model.displayName : id;
+}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Settings } from '@/types';
-import * as storage from '@/hooks/useStorage';
+import * as storage from '@/services/storage';
 
 interface SettingsState {
   settings: Settings;
@@ -8,6 +8,8 @@ interface SettingsState {
   saveSettings: (settings: Settings) => void;
   setApiKey: (apiKey: string) => void;
   getApiKey: () => string | undefined;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  getSidebarCollapsed: () => boolean;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -30,6 +32,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   
   getApiKey: () => {
     return get().settings.wavespeedApiKey;
+  },
+  
+  setSidebarCollapsed: (collapsed: boolean) => {
+    const currentSettings = get().settings;
+    const newSettings = { ...currentSettings, mediaViewerSidebarCollapsed: collapsed };
+    storage.saveSettings(newSettings);
+    set({ settings: newSettings });
+  },
+  
+  getSidebarCollapsed: () => {
+    return get().settings.mediaViewerSidebarCollapsed ?? false;
   },
 }));
 

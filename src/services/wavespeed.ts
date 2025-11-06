@@ -143,10 +143,10 @@ export async function generateImageWan22(options: GenerateImageWan22Options): Pr
       path: 'https://d2p7pge43lyniu.cloudfront.net/output/820757ed-95c5-4786-98b3-499a7c1ba216-u2_t2v_A14B_separate_high_noise_lora_0773b186-b92f-4e0d-afb8-14b0f980c240.safetensors',
       scale: 1.3,
     },
-    {
-      path: 'https://huggingface.co/lopi999/Wan2.2-I2V_General-NSFW-LoRA/blob/main/NSFW-22-H-e8.safetensors',
-      scale: 0.8,
-    },
+    // {
+    //   path: 'https://huggingface.co/lopi999/Wan2.2-I2V_General-NSFW-LoRA/blob/main/NSFW-22-H-e8.safetensors',
+    //   scale: 0.8,
+    // },
   ] : [];
   
   const lowNoiseLoras = hasTrigger ? [
@@ -154,14 +154,14 @@ export async function generateImageWan22(options: GenerateImageWan22Options): Pr
       path: 'https://d2p7pge43lyniu.cloudfront.net/output/820757ed-95c5-4786-98b3-499a7c1ba216-u2_t2v_A14B_separate_low_noise_lora_82f8902b-b4e9-4ed0-aa7a-2f57d822d67d.safetensors',
       scale: 1.3,
     },
-    {
-      path: 'https://huggingface.co/lopi999/Wan2.2-I2V_General-NSFW-LoRA/blob/main/NSFW-22-L-e8.safetensors',
-      scale: 0.8,
-    },
+    // {
+    //   path: 'https://huggingface.co/lopi999/Wan2.2-I2V_General-NSFW-LoRA/blob/main/NSFW-22-L-e8.safetensors',
+    //   scale: 1,
+    // },
   ] : [];
   
   // Modify prompt if trigger word is present
-  const modifiedPrompt = hasTrigger ? `${prompt}, nsfwsks` : prompt;
+  const modifiedPrompt = hasTrigger ? prompt + ' nsfwsks' : prompt;
 
   const request: GenerationRequestWan22 = {
     enable_base64_output: true,

@@ -1,22 +1,18 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Download, Copy, Check, RotateCcw } from 'lucide-react';
+import { X, Download, Copy, Check } from 'lucide-react';
 import { Button } from './ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { GenerationResult } from '@/types';
 
 interface FullscreenImageProps {
   src: string;
   alt?: string;
   className?: string;
   prompt?: string;
-  imageId?: string;
-  result?: GenerationResult;
-  onReuse?: (result: GenerationResult) => void;
   children?: React.ReactNode;
 }
 
-export function FullscreenImage({ src, alt = '', className = '', prompt, imageId, result, onReuse }: FullscreenImageProps) {
+export function FullscreenImage({ src, alt = '', className = '', prompt }: FullscreenImageProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -107,21 +103,6 @@ export function FullscreenImage({ src, alt = '', className = '', prompt, imageId
               <p className="text-sm text-gray-100">{prompt}</p>
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              {result && onReuse && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReuse(result);
-                    setIsFullscreen(false);
-                  }}
-                  className="text-white hover:bg-white/10"
-                  title="Reuse settings"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              )}
               <Button
                 variant="ghost"
                 size="icon"
