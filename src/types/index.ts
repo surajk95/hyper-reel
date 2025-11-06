@@ -25,6 +25,7 @@ export interface MediaItem {
 
 export interface Settings {
   wavespeedApiKey?: string;
+  geminiApiKey?: string;
   mediaViewerSidebarCollapsed?: boolean;
 }
 
@@ -72,11 +73,14 @@ export interface ModelInfo {
   id: string;
   displayName: string;
   supportsImageInput: boolean;
+  provider: 'wavespeed' | 'gemini';
 }
 
 export const MODEL_REGISTRY: ModelInfo[] = [
-  { id: 'qwen-edit', displayName: 'Qwen Edit', supportsImageInput: true },
-  { id: 'wan-2.2', displayName: 'Wan 2.2', supportsImageInput: false },
+  { id: 'qwen-edit', displayName: 'Qwen Edit', supportsImageInput: true, provider: 'wavespeed' },
+  { id: 'wan-2.2', displayName: 'Wan 2.2', supportsImageInput: false, provider: 'wavespeed' },
+  { id: 'gemini-2.5-flash-image', displayName: 'Gemini 2.5 Flash (Text-to-Image)', supportsImageInput: false, provider: 'gemini' },
+  { id: 'gemini-2.5-flash-image-edit', displayName: 'Gemini 2.5 Flash (Image Edit)', supportsImageInput: true, provider: 'gemini' },
 ];
 
 export function getModelById(id: string): ModelInfo | undefined {

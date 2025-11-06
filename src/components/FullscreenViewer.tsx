@@ -141,13 +141,13 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, onUse, onRetry
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-[95vw] h-[95vh] p-0 bg-black">
-          <div className="flex h-full w-full">
+          <div className="flex h-full w-full max-h-[90vh]">
             {/* Left: Image Display */}
             <div className="flex-1 flex items-center justify-center p-8 relative">
               <img
                 src={mediaItem.imageData}
                 alt={mediaItem.prompt || 'Media item'}
-                className="max-w-[90vw] max-h-[90vh] object-contain"
+                className="max-w-[90vw] max-h-full object-contain"
               />
               {/* Sidebar toggle - Only show for generations */}
               {mediaItem.type === 'generation' && (

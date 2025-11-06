@@ -169,6 +169,7 @@ const SETTINGS_KEY = 'hyper-reel-settings';
 
 export interface Settings {
   wavespeedApiKey?: string;
+  geminiApiKey?: string;
   mediaViewerSidebarCollapsed?: boolean;
 }
 
@@ -198,6 +199,17 @@ export function getApiKey(): string | undefined {
 export function setApiKey(apiKey: string): void {
   const settings = getSettings();
   settings.wavespeedApiKey = apiKey;
+  saveSettings(settings);
+}
+
+export function getGeminiApiKey(): string | undefined {
+  const settings = getSettings();
+  return settings.geminiApiKey;
+}
+
+export function setGeminiApiKey(apiKey: string): void {
+  const settings = getSettings();
+  settings.geminiApiKey = apiKey;
   saveSettings(settings);
 }
 

@@ -8,6 +8,8 @@ interface SettingsState {
   saveSettings: (settings: Settings) => void;
   setApiKey: (apiKey: string) => void;
   getApiKey: () => string | undefined;
+  setGeminiApiKey: (apiKey: string) => void;
+  getGeminiApiKey: () => string | undefined;
   setSidebarCollapsed: (collapsed: boolean) => void;
   getSidebarCollapsed: () => boolean;
 }
@@ -32,6 +34,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   
   getApiKey: () => {
     return get().settings.wavespeedApiKey;
+  },
+  
+  setGeminiApiKey: (apiKey: string) => {
+    storage.setGeminiApiKey(apiKey);
+    set(state => ({ settings: { ...state.settings, geminiApiKey: apiKey } }));
+  },
+  
+  getGeminiApiKey: () => {
+    return get().settings.geminiApiKey;
   },
   
   setSidebarCollapsed: (collapsed: boolean) => {

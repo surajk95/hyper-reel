@@ -17,21 +17,24 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
-  const { settings, setApiKey } = useSettingsStore();
+  const { settings, setApiKey, setGeminiApiKey } = useSettingsStore();
   const { toast } = useToast();
-  const [apiKey, setApiKeyLocal] = useState('');
+  const [wavespeedApiKey, setWavespeedApiKeyLocal] = useState('');
+  const [geminiApiKey, setGeminiApiKeyLocal] = useState('');
 
   useEffect(() => {
     if (open) {
-      setApiKeyLocal(settings.wavespeedApiKey || '');
+      setWavespeedApiKeyLocal(settings.wavespeedApiKey || '');
+      setGeminiApiKeyLocal(settings.geminiApiKey || '');
     }
   }, [open, settings]);
 
   const handleSave = () => {
-    setApiKey(apiKey);
+    setApiKey(wavespeedApiKey);
+    setGeminiApiKey(geminiApiKey);
     toast({
       title: 'Settings saved',
-      description: 'Your API key has been saved successfully.',
+      description: 'Your API keys have been saved successfully.',
     });
     onOpenChange(false);
   };
@@ -45,20 +48,48 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
         
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <label htmlFor="apiKey" className="text-sm font-medium">
+            <label htmlFor="wavespeedApiKey" className="text-sm font-medium">
               Wavespeed API Key
             </label>
             <Input
-              id="apiKey"
+              id="wavespeedApiKey"
               type="password"
-              placeholder="Enter your API key"
-              value={apiKey}
-              onChange={(e) => setApiKeyLocal(e.target.value)}
+              placeholder="Enter your Wavespeed API key"
+              value={wavespeedApiKey}
+              onChange={(e) => setWavespeedApiKeyLocal(e.target.value)}
             />
             <p className="text-xs text-gray-500">
-              Your API key is stored locally and never sent to our servers.
+              For Qwen Edit and Wan 2.2 models.
             </p>
           </div>
+
+          <div className="space-y-2">
+            <label htmlFor="geminiApiKey" className="text-sm font-medium">
+              Gemini API Key
+            </label>
+            <Input
+              id="geminiApiKey"
+              type="password"
+              placeholder="Enter your Gemini API key"
+              value={geminiApiKey}
+              onChange={(e) => setGeminiApiKeyLocal(e.target.value)}
+            />
+            <p className="text-xs text-gray-500">
+              For Gemini image generation models. Get your key at{' '}
+              <a 
+                href="https://ai.google.dev/gemini-api/docs" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                ai.google.dev
+              </a>
+            </p>
+          </div>
+
+          <p className="text-xs text-gray-500 pt-2">
+            Your API keys are stored locally and never sent to our servers.
+          </p>
         </div>
         
         <DialogFooter>

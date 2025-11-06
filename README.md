@@ -6,17 +6,20 @@ An intuitive AI movie generation tool that lets users create stunning AI-powered
 
 - 📁 **Project Management**: Organize your work into projects with a clean grid interface
 - 🎬 **Scene Sequencing**: Create and arrange scenes in a visual canvas
-- 🖼️ **Image Generation**: Generate AI images using Wavespeed's Qwen Edit model
+- 🖼️ **Image Generation**: Generate AI images using multiple providers (Wavespeed & Google Gemini)
 - 🎨 **Interactive Canvas**: Zoom, pan, and arrange scenes/images with React Flow
-- 💾 **Local Storage**: All data persists in your browser's localStorage
+- 💾 **Local Storage**: All data persists in your browser's IndexedDB
 - 🌑 **Dark Theme**: Beautiful dark interface optimized for creative work
+- ✨ **Multiple AI Models**: Choose from Qwen Edit, Wan 2.2, or Gemini 2.5 Flash
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js (v18 or higher)
-- A Wavespeed API key ([Get one here](https://wavespeed.ai))
+- API keys for one or more providers:
+  - Wavespeed API key ([Get one here](https://wavespeed.ai)) - for Qwen Edit & Wan 2.2 models
+  - Gemini API key ([Get one here](https://ai.google.dev/gemini-api/docs)) - for Gemini 2.5 Flash models
 
 ### Installation
 
@@ -41,9 +44,13 @@ npm run preview
 
 ## Usage
 
-### 1. Set Up Your API Key
+### 1. Set Up Your API Keys
 
-Click the settings icon (⚙️) in the header and enter your Wavespeed API key. This is stored locally and never leaves your browser.
+Click the settings icon (⚙️) in the header and enter your API keys:
+- **Wavespeed API Key**: For Qwen Edit and Wan 2.2 models
+- **Gemini API Key**: For Gemini 2.5 Flash models
+
+API keys are stored locally in your browser and only sent to their respective providers.
 
 ### 2. Create a Project
 
@@ -58,11 +65,16 @@ In your project canvas:
 
 ### 4. Generate Images
 
-In a scene:
-- Click "Add Image" or select an existing image node
-- Upload 1-3 reference images
+In a project:
+- Click the "Generate" button
+- Choose your model from the Advanced Settings (⚙️):
+  - **Qwen Edit**: Image-to-image editing (requires 1-3 input images)
+  - **Wan 2.2**: Text-to-image generation
+  - **Gemini 2.5 Flash (Text-to-Image)**: Advanced text-to-image
+  - **Gemini 2.5 Flash (Image Edit)**: Edit images with text prompts
+- Upload reference images (if using an image editing model)
 - Write a prompt describing what you want
-- Adjust size and other settings if needed
+- Adjust size, aspect ratio, and other settings if needed
 - Click "Generate"
 
 ### 5. Manage Generations
@@ -77,8 +89,11 @@ In a scene:
 - **Framework**: Vite + React + TypeScript
 - **UI**: shadcn/ui + Tailwind CSS
 - **State**: Zustand
+- **Storage**: IndexedDB (via idb)
 - **Canvas**: React Flow
-- **API**: Wavespeed AI (Qwen Edit model)
+- **AI Providers**:
+  - Wavespeed AI (Qwen Edit, Wan 2.2)
+  - Google Gemini (Gemini 2.5 Flash)
 
 ## Project Structure
 
@@ -95,19 +110,33 @@ src/
 
 ## Storage
 
-All data is stored in your browser's localStorage:
-- Projects and their metadata
-- Scenes and their order
-- Images and selected outputs
-- Generation history (until page refresh)
-- API key settings
+All data is stored in your browser's IndexedDB and localStorage:
+- **IndexedDB**: Projects, media items, and image data
+- **localStorage**: API keys and settings
 
-## API
+## AI Models
 
-This app uses the Wavespeed API for image generation:
-- **Model**: Qwen Edit Plus
-- **Endpoint**: `https://api.wavespeed.ai/api/v3/wavespeed-ai/qwen-image/edit-plus`
-- **Features**: Base64 output, sync mode, up to 3 reference images
+### Wavespeed Models
+
+**Qwen Edit** - Image-to-image editing
+- Endpoint: `https://api.wavespeed.ai/api/v3/wavespeed-ai/qwen-image/edit-plus`
+- Features: Up to 3 reference images, base64 output, sync mode
+
+**Wan 2.2** - Text-to-image generation
+- Endpoint: `https://api.wavespeed.ai/api/v3/wavespeed-ai/wan-2.2/text-to-image-lora`
+- Features: Custom LoRA support, high-quality outputs
+
+### Gemini Models
+
+**Gemini 2.5 Flash** - Text-to-image and image editing
+- Model: `gemini-2.5-flash-image`
+- Features: 
+  - High-fidelity text rendering
+  - Multiple aspect ratios (1:1, 16:9, 9:16, etc.)
+  - Conversational image refinement
+  - Mask-free editing
+
+For more details on Gemini integration, see [GEMINI_INTEGRATION.md](./GEMINI_INTEGRATION.md).
 
 ## License
 

@@ -26,7 +26,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useMediaStore } from '@/stores/useMediaStore';
 import * as wavespeed from '@/services/wavespeed';
-import { OutputFormat, MODEL_REGISTRY, MediaItem } from '@/types';
+import * as gemini from '@/services/gemini';
+import { OutputFormat, MODEL_REGISTRY, MediaItem, getModelById } from '@/types';
 
 interface GenerationDialogProps {
   open: boolean;
@@ -48,13 +49,13 @@ export function GenerationDialog({
   projectId,
   initialPrompt = '',
   initialInputImages = [],
-  initialModelId = 'wan-2.2',
+  initialModelId = 'gemini-2.5-flash-image',
   initialSize = '1536*1536',
   initialSeed = -1,
   initialOutputFormat = 'jpeg',
 }: GenerationDialogProps) {
   const { toast } = useToast();
-  const { getApiKey } = useSettingsStore();
+  const { getApiKey, getGeminiApiKey } = useSettingsStore();
   const { createGeneration, getMediaById } = useMediaStore();
 
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -101,7 +102,7 @@ export function GenerationDialog({
       setCustomSize('');
       setSeed(-1);
       setOutputFormat('jpeg');
-      setSelectedModelId('wan-2.2');
+      setSelectedModelId('gemini-2.5-flash-image');
       setShowAdvanced(false);
     }
   }, [open]);
@@ -131,11 +132,18 @@ export function GenerationDialog({
   };
 
   const handleGenerate = async () => {
-    const apiKey = getApiKey();
+    const model = getModelById(selectedModelId);
+    
+    // Get the appropriate API key based on provider
+    const apiKey = model?.provider === 'gemini' ? getGeminiApiKey() : getApiKey();
+    const providerName = model?.provider === 'gemini' ? 'Gemini' : 'Wavespeed';
+    
+    console.log(`Using ${providerName} API key:`, apiKey ? `${apiKey.substring(0, 10)}...` : 'NOT SET');
+    
     if (!apiKey) {
       toast({
         title: 'API Key Required',
-        description: 'Please set your Wavespeed API key in settings',
+        description: `Please set your ${providerName} API key in settings`,
         variant: 'destructive',
       });
       return;
@@ -151,7 +159,7 @@ export function GenerationDialog({
     }
 
     // Check if model requires images
-    if (selectedModel?.supportsImageInput && selectedModelId !== 'wan-2.2' && inputImageIds.length === 0) {
+    if (selectedModel?.supportsImageInput && inputImageIds.length === 0) {
       toast({
         title: 'Images Required',
         description: `${selectedModel.displayName} requires at least one input image`,
@@ -176,25 +184,39 @@ export function GenerationDialog({
 
       let response;
       
-      if (selectedModelId === 'wan-2.2') {
-        // Text-to-image
-        response = await wavespeed.generateImageWan22({
+      // Route to the correct provider
+      if (model?.provider === 'gemini') {
+        // Gemini models
+        const aspectRatio = gemini.sizeToAspectRatio(size);
+        response = await gemini.generateImageGemini({
           prompt: prompt.trim(),
           apiKey,
-          size,
-          seed,
+          images: inputImagesData.length > 0 ? inputImagesData : undefined,
+          aspectRatio,
           outputFormat,
         });
       } else {
-        // Image-to-image (Qwen Edit)
-        response = await wavespeed.generateImage({
-          prompt: prompt.trim(),
-          images: inputImagesData,
-          apiKey,
-          size,
-          seed,
-          outputFormat,
-        });
+        // Wavespeed models
+        if (selectedModelId === 'wan-2.2') {
+          // Text-to-image
+          response = await wavespeed.generateImageWan22({
+            prompt: prompt.trim(),
+            apiKey,
+            size,
+            seed,
+            outputFormat,
+          });
+        } else {
+          // Image-to-image (Qwen Edit)
+          response = await wavespeed.generateImage({
+            prompt: prompt.trim(),
+            images: inputImagesData,
+            apiKey,
+            size,
+            seed,
+            outputFormat,
+          });
+        }
       }
 
       if (response.outputs && response.outputs.length > 0) {
@@ -250,8 +272,8 @@ export function GenerationDialog({
             {/* Main Input Container */}
             <div className="border border-gray-700 rounded-lg p-2 bg-gray-900/30 hover:border-gray-600 transition-colors">
               <div className="flex gap-2 items-center">
-                {/* Left: Input Images - Only show for image-to-image models */}
-                {selectedModel?.supportsImageInput && selectedModelId !== 'wan-2.2' && (
+                {/* Left: Input Images - Only show for image editing models */}
+                {selectedModel?.supportsImageInput && (
                   <div className="flex gap-1 flex-shrink-0">
                     {inputMediaItems.map((media) => (
                       <div key={media.id} className="relative group w-10 h-10">
@@ -387,7 +409,7 @@ export function GenerationDialog({
                     disabled={
                       isGenerating ||
                       !prompt.trim() ||
-                      (selectedModel?.supportsImageInput && selectedModelId !== 'wan-2.2' && inputImageIds.length === 0)
+                      (selectedModel?.supportsImageInput && inputImageIds.length === 0)
                     }
                     className="px-4 h-8 text-sm"
                   >
