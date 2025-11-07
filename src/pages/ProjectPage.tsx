@@ -113,6 +113,10 @@ export function ProjectPage() {
     setShowViewerDialog(true);
   };
 
+  const handleNavigate = (item: MediaItem) => {
+    setSelectedMedia(item);
+  };
+
   const handleSearchById = (id: string) => {
     setSearchQuery(id);
     setShowViewerDialog(false);
@@ -343,9 +347,11 @@ export function ProjectPage() {
           open={showViewerDialog}
           onOpenChange={setShowViewerDialog}
           mediaItem={selectedMedia}
+          allMedia={filteredMedia}
           onUse={handleUse}
           onRetry={handleRetry}
           onSearchById={handleSearchById}
+          onNavigate={handleNavigate}
         />
       )}
 

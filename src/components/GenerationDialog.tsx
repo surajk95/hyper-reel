@@ -43,6 +43,19 @@ interface GenerationDialogProps {
 
 const SIZE_OPTIONS = ['512*512', '1024*1024', '1536*1536', 'custom'];
 
+const ASPECT_RATIO_OPTIONS = [
+  { value: '1:1', label: '1:1 (1024×1024)', resolution: '1024*1024' },
+  { value: '2:3', label: '2:3 (832×1248)', resolution: '832*1248' },
+  { value: '3:2', label: '3:2 (1248×832)', resolution: '1248*832' },
+  { value: '3:4', label: '3:4 (864×1184)', resolution: '864*1184' },
+  { value: '4:3', label: '4:3 (1184×864)', resolution: '1184*864' },
+  { value: '4:5', label: '4:5 (896×1152)', resolution: '896*1152' },
+  { value: '5:4', label: '5:4 (1152×896)', resolution: '1152*896' },
+  { value: '9:16', label: '9:16 (768×1344)', resolution: '768*1344' },
+  { value: '16:9', label: '16:9 (1344×768)', resolution: '1344*768' },
+  { value: '21:9', label: '21:9 (1536×672)', resolution: '1536*672' },
+];
+
 export function GenerationDialog({
   open,
   onOpenChange,
@@ -62,6 +75,7 @@ export function GenerationDialog({
   const [inputImageIds, setInputImageIds] = useState<string[]>(initialInputImages);
   const [selectedSize, setSelectedSize] = useState(initialSize);
   const [customSize, setCustomSize] = useState('');
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState('1:1');
   const [seed, setSeed] = useState(initialSeed);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(initialOutputFormat);
   const [selectedModelId, setSelectedModelId] = useState(initialModelId);
@@ -100,6 +114,7 @@ export function GenerationDialog({
       setInputImageIds([]);
       setSelectedSize('1536*1536');
       setCustomSize('');
+      setSelectedAspectRatio('1:1');
       setSeed(-1);
       setOutputFormat('jpeg');
       setSelectedModelId('gemini-2.5-flash-image');
@@ -171,8 +186,6 @@ export function GenerationDialog({
     setIsGenerating(true);
 
     try {
-      const size = selectedSize === 'custom' ? customSize : selectedSize;
-      
       // Get actual image data from media items
       const inputImagesData: string[] = [];
       for (const id of inputImageIds) {
@@ -182,12 +195,26 @@ export function GenerationDialog({
         }
       }
 
+      // Determine size based on model type
+      let size: string;
+      let aspectRatio: string;
+      
+      if (model?.provider === 'gemini') {
+        // For all Gemini models, use aspect ratio
+        const selectedOption = ASPECT_RATIO_OPTIONS.find(opt => opt.value === selectedAspectRatio);
+        aspectRatio = selectedAspectRatio;
+        size = selectedOption?.resolution || '1024*1024';
+      } else {
+        // For Wavespeed models, use size
+        size = selectedSize === 'custom' ? customSize : selectedSize;
+        aspectRatio = gemini.sizeToAspectRatio(size);
+      }
+
       let response;
       
       // Route to the correct provider
       if (model?.provider === 'gemini') {
         // Gemini models
-        const aspectRatio = gemini.sizeToAspectRatio(size);
         response = await gemini.generateImageGemini({
           prompt: prompt.trim(),
           apiKey,
@@ -347,58 +374,88 @@ export function GenerationDialog({
                               ))}
                             </SelectContent>
                           </Select>
+                          {selectedModel?.provider === 'gemini' && (
+                            <p className="text-xs text-gray-500">
+                              Note: Output format is determined by Gemini
+                            </p>
+                          )}
                         </div>
 
-                        {/* Size */}
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Size</label>
-                          <div className="flex gap-2">
-                            <Select value={selectedSize} onValueChange={setSelectedSize}>
+                        {/* Aspect Ratio for all Gemini models */}
+                        {selectedModel?.provider === 'gemini' && (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Aspect Ratio</label>
+                            <Select value={selectedAspectRatio} onValueChange={setSelectedAspectRatio}>
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {SIZE_OPTIONS.map((size) => (
-                                  <SelectItem key={size} value={size}>
-                                    {size === 'custom' ? 'Custom' : size}
+                                {ASPECT_RATIO_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            {selectedSize === 'custom' && (
-                              <Input
-                                placeholder="1024*1024"
-                                value={customSize}
-                                onChange={(e) => setCustomSize(e.target.value)}
-                              />
-                            )}
                           </div>
-                        </div>
+                        )}
 
-                        {/* Seed */}
-                        <div className="space-y-2">
-                          <label className="text-sm">Seed (-1 for random)</label>
-                          <Input
-                            type="number"
-                            value={seed}
-                            onChange={(e) => setSeed(parseInt(e.target.value))}
-                          />
-                        </div>
+                        {/* Size for Wavespeed models */}
+                        {selectedModel?.provider === 'wavespeed' && (
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium">Size</label>
+                            <div className="flex gap-2">
+                              <Select value={selectedSize} onValueChange={setSelectedSize}>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {SIZE_OPTIONS.map((size) => (
+                                    <SelectItem key={size} value={size}>
+                                      {size === 'custom' ? 'Custom' : size}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {selectedSize === 'custom' && (
+                                <Input
+                                  placeholder="1024*1024"
+                                  value={customSize}
+                                  onChange={(e) => setCustomSize(e.target.value)}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )}
 
-                        {/* Output Format */}
-                        <div className="space-y-2">
-                          <label className="text-sm">Output Format</label>
-                          <Select value={outputFormat} onValueChange={(v) => setOutputFormat(v as OutputFormat)}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="jpeg">JPEG</SelectItem>
-                              <SelectItem value="png">PNG</SelectItem>
-                              <SelectItem value="webp">WebP</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        {/* Seed - Disabled for Gemini models */}
+                        {selectedModel?.provider !== 'gemini' && (
+                          <div className="space-y-2">
+                            <label className="text-sm">Seed (-1 for random)</label>
+                            <Input
+                              type="number"
+                              value={seed}
+                              onChange={(e) => setSeed(parseInt(e.target.value))}
+                            />
+                          </div>
+                        )}
+
+                        {/* Output Format - Only for Wavespeed models */}
+                        {selectedModel?.provider === 'wavespeed' && (
+                          <div className="space-y-2">
+                            <label className="text-sm">Output Format</label>
+                            <Select value={outputFormat} onValueChange={(v) => setOutputFormat(v as OutputFormat)}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="jpeg">JPEG</SelectItem>
+                                <SelectItem value="png">PNG</SelectItem>
+                                <SelectItem value="webp">WebP</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     </PopoverContent>
                   </Popover>

@@ -34,5 +34,30 @@
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Dark scrollbar styles */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(55, 65, 81) rgb(17, 24, 39);
+  }
+  
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  *::-webkit-scrollbar-track {
+    background: rgb(17, 24, 39);
+  }
+  
+  *::-webkit-scrollbar-thumb {
+    background: rgb(55, 65, 81);
+    border-radius: 4px;
+  }
+  
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(75, 85, 99);
+  }
 }
 

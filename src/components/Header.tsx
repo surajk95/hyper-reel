@@ -15,7 +15,7 @@ export function Header({ title = 'Hyper Reel', showBack = false, onSettingsClick
 
   return (
     <header className="border-b border-gray-800 bg-black">
-      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+      <div className="container w-full max-w-full px-2 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           {showBack && (
             <Button

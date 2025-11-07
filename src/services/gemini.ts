@@ -62,15 +62,18 @@ export async function generateImageGemini(
       }
     }
 
+    // Build config with aspectRatio
+    const config: any = {
+      imageConfig: {
+        aspectRatio,
+      },
+    };
+
     // Make the API call
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents,
-      config: {
-        imageConfig: {
-          aspectRatio,
-        },
-      },
+      config,
     });
 
     // Process the response

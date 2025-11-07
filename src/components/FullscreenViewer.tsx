@@ -24,12 +24,14 @@ interface FullscreenViewerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mediaItem: MediaItem;
+  allMedia?: MediaItem[]; // List of all filtered media for navigation
   onUse?: (mediaItem: MediaItem) => void;
   onRetry?: (mediaItem: MediaItem) => void;
   onSearchById?: (id: string) => void;
+  onNavigate?: (mediaItem: MediaItem) => void; // Called when navigating to a different item
 }
 
-export function FullscreenViewer({ open, onOpenChange, mediaItem, onUse, onRetry, onSearchById }: FullscreenViewerProps) {
+export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [], onUse, onRetry, onSearchById, onNavigate }: FullscreenViewerProps) {
   const { getSidebarCollapsed, setSidebarCollapsed } = useSettingsStore();
   const { deleteMedia, getMediaById } = useMediaStore();
   const { toast } = useToast();
@@ -39,9 +41,50 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, onUse, onRetry
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
 
+  // Find current index in the filtered media list
+  const currentIndex = allMedia.findIndex(item => item.id === mediaItem.id);
+  const hasPrevious = currentIndex > 0;
+  const hasNext = currentIndex >= 0 && currentIndex < allMedia.length - 1;
+
   useEffect(() => {
     setSidebarCollapsedLocal(getSidebarCollapsed());
   }, [getSidebarCollapsed]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' && hasPrevious) {
+        handlePrevious();
+      } else if (e.key === 'ArrowRight' && hasNext) {
+        handleNext();
+      } else if (e.key === 'Escape') {
+        onOpenChange(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, hasPrevious, hasNext, currentIndex, allMedia]);
+
+  const handlePrevious = () => {
+    if (hasPrevious && currentIndex > 0) {
+      const previousItem = allMedia[currentIndex - 1];
+      if (onNavigate) {
+        onNavigate(previousItem);
+      }
+    }
+  };
+
+  const handleNext = () => {
+    if (hasNext && currentIndex < allMedia.length - 1) {
+      const nextItem = allMedia[currentIndex + 1];
+      if (onNavigate) {
+        onNavigate(nextItem);
+      }
+    }
+  };
 
   const toggleSidebar = () => {
     const newState = !sidebarCollapsed;
@@ -147,8 +190,37 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, onUse, onRetry
               <img
                 src={mediaItem.imageData}
                 alt={mediaItem.prompt || 'Media item'}
-                className="max-w-[90vw] max-h-full object-contain"
+                className="max-w-[70vw] max-h-full object-contain"
               />
+              
+              {/* Navigation Arrows */}
+              {hasPrevious && (
+                <button
+                  onClick={handlePrevious}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+                  title="Previous (←)"
+                >
+                  <ChevronLeft className="h-6 w-6 text-white" />
+                </button>
+              )}
+              
+              {hasNext && (
+                <button
+                  onClick={handleNext}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-black/50 hover:bg-black/70 transition-colors"
+                  title="Next (→)"
+                >
+                  <ChevronRight className="h-6 w-6 text-white" />
+                </button>
+              )}
+
+              {/* Counter Badge */}
+              {allMedia.length > 0 && currentIndex >= 0 && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/50 text-white text-sm">
+                  {currentIndex + 1} / {allMedia.length}
+                </div>
+              )}
+              
               {/* Sidebar toggle - Only show for generations */}
               {mediaItem.type === 'generation' && (
                 <button
