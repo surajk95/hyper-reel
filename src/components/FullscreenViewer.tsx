@@ -186,12 +186,55 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
         <DialogContent className="max-w-[95vw] h-[95vh] p-0 bg-black">
           <div className="flex h-full w-full max-h-[90vh]">
             {/* Left: Image Display */}
-            <div className="flex-1 flex items-center justify-center p-8 relative">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
               <img
                 src={mediaItem.imageData}
                 alt={mediaItem.prompt || 'Media item'}
                 className="max-w-[70vw] max-h-full object-contain"
               />
+              
+              {/* Action Buttons Row - Show for all media types when sidebar is collapsed or for uploads */}
+              {(mediaItem.type === 'upload' || (mediaItem.type === 'generation' && sidebarCollapsed)) && (
+                <div className="flex gap-2 mt-4">
+                  <Button
+                    onClick={handleUse}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    <ImagePlus className="h-4 w-4 mr-2" />
+                    Use as Input
+                  </Button>
+                  
+                  {mediaItem.type === 'generation' && (
+                    <Button
+                      onClick={handleRetry}
+                      variant="secondary"
+                      size="sm"
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Retry
+                    </Button>
+                  )}
+                  
+                  <Button
+                    onClick={handleDownload}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    variant="destructive"
+                    size="sm"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                </div>
+              )}
               
               {/* Navigation Arrows */}
               {hasPrevious && (

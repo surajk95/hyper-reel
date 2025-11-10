@@ -108,7 +108,7 @@ export function MediaPickerDialog({ open, onOpenChange, onSelect, projectId }: M
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[90vw] sm:max-w-5xl max-h-[95vh] flex flex-col">
+      <DialogContent className="max-w-[90vw] sm:max-w-5xl h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Select or Upload Media</DialogTitle>
         </DialogHeader>

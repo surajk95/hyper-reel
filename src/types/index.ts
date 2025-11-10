@@ -19,6 +19,7 @@ export interface MediaItem {
   seed?: number;
   outputFormat?: OutputFormat;
   inputImageIds?: string[]; // references to other MediaItem IDs
+  archived?: boolean; // Whether the item is archived
   createdAt: number;
   updatedAt: number;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Dialog,
@@ -8,7 +8,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Search, X } from 'lucide-react';
+import { Search, X, Upload } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { MediaGridItem } from '@/components/MediaGridItem';
 import { GenerationDialog } from '@/components/GenerationDialog';
@@ -27,7 +27,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Plus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useProjectsStore } from '@/stores/useProjectsStore';
 import { useMediaStore } from '@/stores/useMediaStore';
 import { useSettingsStore } from '@/stores/useSettingsStore';
@@ -37,17 +37,22 @@ import { MediaItem, MediaType } from '@/types';
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { projects, loadProjects, updateProject } = useProjectsStore();
-  const { mediaItems, loadMediaByProject, deleteMedia } = useMediaStore();
+  const { mediaItems, loadMediaByProject, deleteMedia, createUpload, updateMedia } = useMediaStore();
   const { loadSettings } = useSettingsStore();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [showGenerationDialog, setShowGenerationDialog] = useState(false);
+  const [showGenerationDialog, setShowGenerationDialog] = useState(true);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showViewerDialog, setShowViewerDialog] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [filterType, setFilterType] = useState<'all' | MediaType>(() => {
     const saved = localStorage.getItem('hyper-reel-filter-type');
     return (saved as 'all' | MediaType) || 'generation';
+  });
+  const [showArchived, setShowArchived] = useState(() => {
+    const saved = localStorage.getItem('hyper-reel-show-archived');
+    return saved === 'true';
   });
   const [gridColumns, setGridColumns] = useState(() => {
     const saved = localStorage.getItem('hyper-reel-grid-columns');
@@ -82,14 +87,36 @@ export function ProjectPage() {
     localStorage.setItem('hyper-reel-filter-type', filterType);
   }, [filterType]);
 
+  // Save show archived to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('hyper-reel-show-archived', showArchived.toString());
+  }, [showArchived]);
+
   // Save grid columns to localStorage when it changes
   useEffect(() => {
     localStorage.setItem('hyper-reel-grid-columns', gridColumns.toString());
   }, [gridColumns]);
 
+  // Auto-switch to "all" filter when there are no generations but there are uploads
+  useEffect(() => {
+    if (filterType === 'generation' && mediaItems.length > 0) {
+      const generationCount = mediaItems.filter((item) => item.type === 'generation').length;
+      const uploadCount = mediaItems.filter((item) => item.type === 'upload').length;
+      
+      if (generationCount === 0 && uploadCount > 0) {
+        setFilterType('all');
+      }
+    }
+  }, [mediaItems, filterType]);
+
   // Filter media items
   const filteredMedia = useMemo(() => {
     let filtered = mediaItems;
+
+    // Filter by archived status
+    if (!showArchived) {
+      filtered = filtered.filter((item) => !item.archived);
+    }
 
     // Filter by type
     if (filterType !== 'all') {
@@ -106,7 +133,7 @@ export function ProjectPage() {
     }
 
     return filtered;
-  }, [mediaItems, filterType, searchQuery]);
+  }, [mediaItems, filterType, searchQuery, showArchived]);
 
   const handleView = (item: MediaItem) => {
     setSelectedMedia(item);
@@ -131,6 +158,8 @@ export function ProjectPage() {
     setGenDialogSeed(-1);
     setGenDialogOutputFormat('jpeg');
     setShowGenerationDialog(true);
+    // Expand the generation dialog by setting the localStorage value
+    localStorage.setItem('hyper-reel-generation-expanded', 'true');
   };
 
   const handleRetry = (item: MediaItem) => {
@@ -142,6 +171,8 @@ export function ProjectPage() {
     setGenDialogSeed(item.seed || -1);
     setGenDialogOutputFormat(item.outputFormat || 'jpeg');
     setShowGenerationDialog(true);
+    // Expand the generation dialog by setting the localStorage value
+    localStorage.setItem('hyper-reel-generation-expanded', 'true');
   };
 
   const handleDownload = (item: MediaItem) => {
@@ -177,15 +208,13 @@ export function ProjectPage() {
     setMediaToDelete(null);
   };
 
-  const handleNewGeneration = () => {
-    // Reset generation dialog to defaults
-    setGenDialogPrompt('');
-    setGenDialogInputImages([]);
-    setGenDialogModelId('wan-2.2');
-    setGenDialogSize('1536*1536');
-    setGenDialogSeed(-1);
-    setGenDialogOutputFormat('jpeg');
-    setShowGenerationDialog(true);
+  const handleArchive = async (item: MediaItem) => {
+    const newArchivedState = !item.archived;
+    await updateMedia(item.id, { archived: newArchivedState });
+    toast({
+      title: newArchivedState ? 'Media Archived' : 'Media Unarchived',
+      description: newArchivedState ? 'The media item has been archived' : 'The media item has been restored',
+    });
   };
 
   const handleGenerationDialogClose = () => {
@@ -207,6 +236,58 @@ export function ProjectPage() {
       setShowRenameDialog(false);
       await loadProjects();
     }
+  };
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || !projectId) return;
+
+    // Switch to "all" filter when uploading if currently on "generation" filter
+    if (filterType === 'generation') {
+      setFilterType('all');
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: 'Invalid File',
+          description: `${file.name} is not an image file`,
+          variant: 'destructive',
+        });
+        continue;
+      }
+
+      try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const imageData = e.target?.result as string;
+          await createUpload(projectId, imageData);
+          toast({
+            title: 'Upload Complete',
+            description: `${file.name} has been uploaded`,
+          });
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error('Upload error:', error);
+        toast({
+          title: 'Upload Failed',
+          description: error instanceof Error ? error.message : 'Unknown error occurred',
+          variant: 'destructive',
+        });
+      }
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleFileUpload(e.dataTransfer.files);
   };
 
   if (!project) {
@@ -253,6 +334,21 @@ export function ProjectPage() {
         {/* Spacer to push everything else to the right */}
         <div className="flex-1" />
 
+        {/* Show Archived Checkbox */}
+        <div className="flex items-center gap-2">
+          <Checkbox 
+            id="show-archived" 
+            checked={showArchived}
+            onCheckedChange={(checked) => setShowArchived(checked === true)}
+          />
+          <label 
+            htmlFor="show-archived" 
+            className="text-xs text-gray-400 cursor-pointer"
+          >
+            Show Archived
+          </label>
+        </div>
+
         {/* Grid Size Slider - Right aligned */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-400">Columns:</span>
@@ -290,43 +386,50 @@ export function ProjectPage() {
       </div>
 
       {/* Media Grid */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {filteredMedia.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <p className="text-lg mb-2">No media yet</p>
-            <p className="text-sm">Click the + button to generate your first image</p>
-          </div>
-        ) : (
-          <div
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
-            }}
-          >
-            {filteredMedia.map((item) => (
-              <MediaGridItem
-                key={item.id}
-                mediaItem={item}
-                onView={handleView}
-                onUse={handleUse}
-                onRetry={handleRetry}
-                onDownload={handleDownload}
-                onDelete={handleDeleteRequest}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Floating Action Button */}
-      <div className="absolute bottom-8 right-8">
-        <Button
-          size="lg"
-          onClick={handleNewGeneration}
-          className="shadow-lg rounded-full h-14 w-14 p-0"
+      <div className="flex-1 overflow-y-auto p-6 pb-32">
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+          }}
         >
-          <Plus className="h-6 w-6" />
-        </Button>
+          {/* Upload Placeholder - Show when no media */}
+          {filteredMedia.length === 0 && (
+            <div
+              className="relative aspect-square border-2 border-dashed border-gray-700 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-gray-500 hover:bg-gray-900/30 transition-colors group px-2 py-2"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              <Upload className="h-6 w-6 text-gray-600 group-hover:text-gray-400 transition-colors mb-3" />
+              <p className="text-sm text-gray-500 group-hover:text-gray-400 transition-colors text-center">
+                Click to upload / Drop images here
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files)}
+              />
+            </div>
+          )}
+
+          {/* Media Items */}
+          {filteredMedia.map((item) => (
+            <MediaGridItem
+              key={item.id}
+              mediaItem={item}
+              onView={handleView}
+              onUse={handleUse}
+              onRetry={handleRetry}
+              onDownload={handleDownload}
+              onArchive={handleArchive}
+              onDelete={handleDeleteRequest}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Dialogs */}

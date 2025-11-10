@@ -21,7 +21,7 @@ export function Header({ title = 'Hyper Reel', showBack = false, onSettingsClick
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/')}
             >
               ← Back
             </Button>
