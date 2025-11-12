@@ -62,7 +62,7 @@ const ASPECT_RATIO_OPTIONS = [
 
 export function GenerationDialog({
   open,
-  onOpenChange,
+  onOpenChange: _onOpenChange,
   projectId,
   initialPrompt = '',
   initialInputImages = [],

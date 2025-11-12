@@ -19,6 +19,7 @@ import { MediaItem, getModelDisplayName } from '@/types';
 import { useSettingsStore } from '@/stores/useSettingsStore';
 import { useMediaStore } from '@/stores/useMediaStore';
 import { useToast } from '@/hooks/use-toast';
+import { TagsSection } from './TagsSection';
 
 interface FullscreenViewerProps {
   open: boolean;
@@ -33,7 +34,7 @@ interface FullscreenViewerProps {
 
 export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [], onUse, onRetry, onSearchById, onNavigate }: FullscreenViewerProps) {
   const { getSidebarCollapsed, setSidebarCollapsed } = useSettingsStore();
-  const { deleteMedia, getMediaById } = useMediaStore();
+  const { deleteMedia, getMediaById, updateMedia } = useMediaStore();
   const { toast } = useToast();
   
   const [sidebarCollapsed, setSidebarCollapsedLocal] = useState(getSidebarCollapsed());
@@ -41,8 +42,11 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
 
+  // Get the latest version of the media item from the store to reflect updates
+  const currentMediaItem = getMediaById(mediaItem.id) || mediaItem;
+
   // Find current index in the filtered media list
-  const currentIndex = allMedia.findIndex(item => item.id === mediaItem.id);
+  const currentIndex = allMedia.findIndex(item => item.id === currentMediaItem.id);
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < allMedia.length - 1;
 
@@ -94,8 +98,8 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
 
   const handleDownload = () => {
     const link = document.createElement('a');
-    link.href = mediaItem.imageData;
-    link.download = `${mediaItem.id}.${mediaItem.outputFormat || 'jpeg'}`;
+    link.href = currentMediaItem.imageData;
+    link.download = `${currentMediaItem.id}.${currentMediaItem.outputFormat || 'jpeg'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -107,7 +111,7 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
   };
 
   const handleDelete = async () => {
-    const success = await deleteMedia(mediaItem.id);
+    const success = await deleteMedia(currentMediaItem.id);
     if (success) {
       toast({
         title: 'Media Deleted',
@@ -119,22 +123,22 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
 
   const handleUse = () => {
     if (onUse) {
-      onUse(mediaItem);
+      onUse(currentMediaItem);
       onOpenChange(false);
     }
   };
 
   const handleRetry = () => {
     if (onRetry) {
-      onRetry(mediaItem);
+      onRetry(currentMediaItem);
       onOpenChange(false);
     }
   };
 
   const handleCopyPrompt = async () => {
-    if (mediaItem.prompt) {
+    if (currentMediaItem.prompt) {
       try {
-        await navigator.clipboard.writeText(mediaItem.prompt);
+        await navigator.clipboard.writeText(currentMediaItem.prompt);
         setCopiedPrompt(true);
         toast({
           title: 'Copied',
@@ -153,7 +157,7 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
 
   const handleCopyId = async () => {
     try {
-      await navigator.clipboard.writeText(mediaItem.id);
+      await navigator.clipboard.writeText(currentMediaItem.id);
       setCopiedId(true);
       toast({
         title: 'Copied',
@@ -175,8 +179,16 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
     }
   };
 
+  const handleTagsChange = async (newTags: string[]) => {
+    await updateMedia(currentMediaItem.id, { tags: newTags });
+    toast({
+      title: 'Tags Updated',
+      description: 'Tags have been saved',
+    });
+  };
+
   // Get input images if available
-  const inputMediaItems = mediaItem.inputImageIds
+  const inputMediaItems = currentMediaItem.inputImageIds
     ?.map((id) => getMediaById(id))
     .filter((item): item is MediaItem => item !== undefined) || [];
 
@@ -187,14 +199,26 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
           <div className="flex h-full w-full max-h-[90vh]">
             {/* Left: Image Display */}
             <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
-              <img
-                src={mediaItem.imageData}
-                alt={mediaItem.prompt || 'Media item'}
-                className="max-w-[70vw] max-h-full object-contain"
-              />
+              <div className="relative max-h-full">
+                <img
+                  src={currentMediaItem.imageData}
+                  alt={currentMediaItem.prompt || 'Media item'}
+                  className="max-w-[70vw] max-h-full object-contain"
+                />
+                
+                {/* Tags Overlay - Show for uploads or when sidebar is collapsed */}
+                {(currentMediaItem.type === 'upload' || (currentMediaItem.type === 'generation' && sidebarCollapsed)) && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-4 pt-8">
+                    <TagsSection
+                      tags={currentMediaItem.tags || []}
+                      onTagsChange={handleTagsChange}
+                    />
+                  </div>
+                )}
+              </div>
               
               {/* Action Buttons Row - Show for all media types when sidebar is collapsed or for uploads */}
-              {(mediaItem.type === 'upload' || (mediaItem.type === 'generation' && sidebarCollapsed)) && (
+              {(currentMediaItem.type === 'upload' || (currentMediaItem.type === 'generation' && sidebarCollapsed)) && (
                 <div className="flex gap-2 mt-4">
                   <Button
                     onClick={handleUse}
@@ -205,7 +229,7 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
                     Use as Input
                   </Button>
                   
-                  {mediaItem.type === 'generation' && (
+                  {currentMediaItem.type === 'generation' && (
                     <Button
                       onClick={handleRetry}
                       variant="secondary"
@@ -265,7 +289,7 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
               )}
               
               {/* Sidebar toggle - Only show for generations */}
-              {mediaItem.type === 'generation' && (
+              {currentMediaItem.type === 'generation' && (
                 <button
                   onClick={toggleSidebar}
                   className={`absolute top-4 ${sidebarCollapsed ? 'right-16' : 'right-4'} p-2 rounded-full bg-white/30 hover:bg-white/50 transition-colors`}
@@ -280,18 +304,24 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
             </div>
 
             {/* Right: Info Sidebar - Only show for generations */}
-            {mediaItem.type === 'generation' && !sidebarCollapsed && (
+            {currentMediaItem.type === 'generation' && !sidebarCollapsed && (
               <div className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col max-h-full overflow-y-auto mb-[50px]">
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {/* Type Badge */}
                   <div>
                     <span className="inline-block px-2 py-1 rounded text-xs bg-blue-600 text-white">
-                      {mediaItem.type === 'generation' ? 'Generation' : 'Upload'}
+                      {currentMediaItem.type === 'generation' ? 'Generation' : 'Upload'}
                     </span>
                   </div>
 
+                  {/* Tags Section */}
+                  <TagsSection
+                    tags={currentMediaItem.tags || []}
+                    onTagsChange={handleTagsChange}
+                  />
+
                   {/* Prompt */}
-                  {mediaItem.prompt && (
+                  {currentMediaItem.prompt && (
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-medium text-gray-400">Prompt</h3>
@@ -310,16 +340,16 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
                         </Button>
                       </div>
                       <div className="max-h-[100px] overflow-y-auto text-sm text-white">
-                        {mediaItem.prompt}
+                        {currentMediaItem.prompt}
                       </div>
                     </div>
                   )}
 
                   {/* Model */}
-                  {mediaItem.modelId && (
+                  {currentMediaItem.modelId && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-400 mb-2">Model</h3>
-                      <p className="text-sm text-white">{getModelDisplayName(mediaItem.modelId)}</p>
+                      <p className="text-sm text-white">{getModelDisplayName(currentMediaItem.modelId)}</p>
                     </div>
                   )}
 
@@ -343,26 +373,26 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
                   )}
 
                   {/* Settings */}
-                  {mediaItem.type === 'generation' && (
+                  {currentMediaItem.type === 'generation' && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-400 mb-2">Settings</h3>
                       <div className="space-y-1 text-sm text-gray-300">
-                        {mediaItem.size && (
+                        {currentMediaItem.size && (
                           <div className="flex justify-between">
                             <span className="text-gray-400">Size:</span>
-                            <span>{mediaItem.size}</span>
+                            <span>{currentMediaItem.size}</span>
                           </div>
                         )}
-                        {mediaItem.seed !== undefined && (
+                        {currentMediaItem.seed !== undefined && (
                           <div className="flex justify-between">
                             <span className="text-gray-400">Seed:</span>
-                            <span>{mediaItem.seed}</span>
+                            <span>{currentMediaItem.seed}</span>
                           </div>
                         )}
-                        {mediaItem.outputFormat && (
+                        {currentMediaItem.outputFormat && (
                           <div className="flex justify-between">
                             <span className="text-gray-400">Format:</span>
-                            <span>{mediaItem.outputFormat.toUpperCase()}</span>
+                            <span>{currentMediaItem.outputFormat.toUpperCase()}</span>
                           </div>
                         )}
                       </div>
@@ -376,7 +406,7 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">ID:</span>
                         <div className="flex items-center gap-1">
-                          <span className="text-xs font-mono">{mediaItem.id.slice(0, 12)}...</span>
+                          <span className="text-xs font-mono">{currentMediaItem.id.slice(0, 12)}...</span>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -394,7 +424,7 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Created:</span>
-                        <span>{new Date(mediaItem.createdAt).toLocaleDateString()}</span>
+                        <span>{new Date(currentMediaItem.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
                   </div>
@@ -411,7 +441,7 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
                     Use as Input
                   </Button>
                   
-                  {mediaItem.type === 'generation' && (
+                  {currentMediaItem.type === 'generation' && (
                     <Button
                       onClick={handleRetry}
                       className="w-full"
@@ -452,7 +482,7 @@ export function FullscreenViewer({ open, onOpenChange, mediaItem, allMedia = [],
             <AlertDialogTitle>Delete Media?</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete this media item? This action cannot be undone.
-              {mediaItem.inputImageIds && mediaItem.inputImageIds.length > 0 && (
+              {currentMediaItem.inputImageIds && currentMediaItem.inputImageIds.length > 0 && (
                 <span className="block mt-2 text-yellow-500">
                   Note: References to this image in other media will be removed.
                 </span>

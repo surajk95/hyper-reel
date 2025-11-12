@@ -1,4 +1,4 @@
-import { Settings, Pencil } from 'lucide-react';
+import { Settings, Pencil, Upload } from 'lucide-react';
 import { Button } from './ui/button';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,9 +8,11 @@ interface HeaderProps {
   onSettingsClick?: () => void;
   onEditTitle?: () => void;
   showEditTitle?: boolean;
+  onUploadClick?: () => void;
+  showUpload?: boolean;
 }
 
-export function Header({ title = 'Hyper Reel', showBack = false, onSettingsClick, onEditTitle, showEditTitle = false }: HeaderProps) {
+export function Header({ title = 'Hyper Reel', showBack = false, onSettingsClick, onEditTitle, showEditTitle = false, onUploadClick, showUpload = false }: HeaderProps) {
   const navigate = useNavigate();
 
   return (
@@ -40,14 +42,27 @@ export function Header({ title = 'Hyper Reel', showBack = false, onSettingsClick
           )}
         </div>
         
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onSettingsClick}
-          title="Settings"
-        >
-          <Settings className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {showUpload && onUploadClick && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onUploadClick}
+              title="Upload images"
+            >
+              <Upload className="h-5 w-5" />
+            </Button>
+          )}
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onSettingsClick}
+            title="Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
     </header>
   );

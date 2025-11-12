@@ -20,6 +20,7 @@ export interface MediaItem {
   outputFormat?: OutputFormat;
   inputImageIds?: string[]; // references to other MediaItem IDs
   archived?: boolean; // Whether the item is archived
+  tags?: string[]; // User-defined tags for categorization
   createdAt: number;
   updatedAt: number;
 }

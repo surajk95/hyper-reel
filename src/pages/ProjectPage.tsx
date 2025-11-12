@@ -14,6 +14,7 @@ import { MediaGridItem } from '@/components/MediaGridItem';
 import { GenerationDialog } from '@/components/GenerationDialog';
 import { FullscreenViewer } from '@/components/FullscreenViewer';
 import { SettingsDialog } from '@/components/SettingsDialog';
+import { UploadDialog } from '@/components/UploadDialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +45,7 @@ export function ProjectPage() {
 
   const [showGenerationDialog, setShowGenerationDialog] = useState(true);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showViewerDialog, setShowViewerDialog] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [filterType, setFilterType] = useState<'all' | MediaType>(() => {
@@ -123,12 +125,13 @@ export function ProjectPage() {
       filtered = filtered.filter((item) => item.type === filterType);
     }
 
-    // Filter by search query (prompt or ID)
+    // Filter by search query (prompt, ID, or tags)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter((item) => 
         item.prompt?.toLowerCase().includes(query) || 
-        item.id.toLowerCase().includes(query)
+        item.id.toLowerCase().includes(query) ||
+        item.tags?.some((tag) => tag.toLowerCase().includes(query))
       );
     }
 
@@ -305,6 +308,8 @@ export function ProjectPage() {
         showBack
         showEditTitle
         onEditTitle={handleRenameProject}
+        showUpload
+        onUploadClick={() => setShowUploadDialog(true)}
         onSettingsClick={() => setShowSettingsDialog(true)}
       />
 
@@ -315,7 +320,7 @@ export function ProjectPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           <Input
             type="text"
-            placeholder="Search by prompt or ID..."
+            placeholder="Search by prompt, tag, or ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 pr-9"
@@ -461,6 +466,12 @@ export function ProjectPage() {
       <SettingsDialog
         open={showSettingsDialog}
         onOpenChange={setShowSettingsDialog}
+      />
+
+      <UploadDialog
+        open={showUploadDialog}
+        onOpenChange={setShowUploadDialog}
+        projectId={projectId!}
       />
 
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
