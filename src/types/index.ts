@@ -81,8 +81,8 @@ export interface ModelInfo {
 export const MODEL_REGISTRY: ModelInfo[] = [
   { id: 'qwen-edit', displayName: 'Qwen Edit', supportsImageInput: true, provider: 'wavespeed' },
   { id: 'wan-2.2', displayName: 'Wan 2.2', supportsImageInput: false, provider: 'wavespeed' },
-  { id: 'gemini-2.5-flash-image', displayName: 'Gemini 2.5 Flash (Text-to-Image)', supportsImageInput: false, provider: 'gemini' },
-  { id: 'gemini-2.5-flash-image-edit', displayName: 'Gemini 2.5 Flash (Image Edit)', supportsImageInput: true, provider: 'gemini' },
+  { id: 'gemini-2.5-flash-image', displayName: 'Gemini 2.5 Flash (Nano Banana)', supportsImageInput: true, provider: 'gemini' },
+  { id: 'gemini-3-pro-image-preview', displayName: 'Gemini 3 Pro (Nano Banana Pro)', supportsImageInput: true, provider: 'gemini' },
 ];
 
 export function getModelById(id: string): ModelInfo | undefined {

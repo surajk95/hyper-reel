@@ -7,6 +7,8 @@ export interface GenerateImageGeminiOptions {
   images?: string[]; // base64 data URIs for image editing
   aspectRatio?: string;
   outputFormat?: OutputFormat;
+  modelId?: string; // Model ID to use (default: gemini-2.5-flash-image)
+  imageSize?: '1K' | '2K' | '4K'; // Resolution for Gemini 3 Pro models
 }
 
 /**
@@ -22,6 +24,8 @@ export async function generateImageGemini(
     images = [],
     aspectRatio = "1:1",
     outputFormat = 'png',
+    modelId = 'gemini-2.5-flash-image',
+    imageSize = '1K',
   } = options;
 
   if (!apiKey) {
@@ -62,16 +66,22 @@ export async function generateImageGemini(
       }
     }
 
-    // Build config with aspectRatio
+    // Build config with aspectRatio and imageSize
     const config: any = {
       imageConfig: {
         aspectRatio,
       },
     };
 
+    // Add imageSize for Gemini 3 Pro models
+    const isGemini3Pro = modelId.includes('gemini-3-pro');
+    if (isGemini3Pro) {
+      config.imageConfig.imageSize = imageSize;
+    }
+
     // Make the API call
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
+      model: modelId,
       contents,
       config,
     });
@@ -104,7 +114,7 @@ export async function generateImageGemini(
     return {
       created_at: new Date().toISOString(),
       id: `gemini-${Date.now()}`,
-      model: 'gemini-2.5-flash-image',
+      model: modelId,
       outputs,
       status: 'succeeded',
     };
@@ -113,8 +123,13 @@ export async function generateImageGemini(
       const errorMessage = error.message.toLowerCase();
       
       // Check for common error types and provide helpful messages
-      if (errorMessage.includes('quota') || errorMessage.includes('rate limit')) {
-        throw new Error(`Gemini API quota exceeded. Please check your API key and usage limits at https://aistudio.google.com/app/apikey`);
+      if (errorMessage.includes('quota') || errorMessage.includes('rate limit') || errorMessage.includes('resource_exhausted')) {
+        // Extract retry time if available
+        const retryMatch = error.message.match(/retry in ([\d.]+)s/);
+        const retryTime = retryMatch ? ` Please retry in ${Math.ceil(parseFloat(retryMatch[1]))} seconds.` : '';
+        throw new Error(`Gemini API quota exceeded.${retryTime} Check your usage at https://ai.dev/usage?tab=rate-limit`);
+      } else if (errorMessage.includes('not found') || errorMessage.includes('not supported')) {
+        throw new Error(`Model not available. ${error.message}`);
       } else if (errorMessage.includes('api key') || errorMessage.includes('invalid') || errorMessage.includes('unauthorized')) {
         throw new Error(`Invalid Gemini API key. Please verify your API key at https://aistudio.google.com/app/apikey`);
       } else if (errorMessage.includes('permission')) {

@@ -80,6 +80,7 @@ export function GenerationDialog({
   const [selectedSize, setSelectedSize] = useState(initialSize);
   const [customSize, setCustomSize] = useState('');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('1:1');
+  const [imageResolution, setImageResolution] = useState<'1K' | '2K' | '4K'>('2K');
   const [seed, setSeed] = useState(initialSeed);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(initialOutputFormat);
   const [selectedModelId, setSelectedModelId] = useState(initialModelId);
@@ -129,6 +130,7 @@ export function GenerationDialog({
       setSelectedSize('1536*1536');
       setCustomSize('');
       setSelectedAspectRatio('1:1');
+      setImageResolution('2K');
       setSeed(-1);
       setOutputFormat('jpeg');
       setSelectedModelId('gemini-2.5-flash-image');
@@ -156,7 +158,10 @@ export function GenerationDialog({
   const selectedModel = MODEL_REGISTRY.find((m) => m.id === selectedModelId);
 
   const handleMediaSelect = (mediaItem: MediaItem) => {
-    if (inputImageIds.length < 3 && !inputImageIds.includes(mediaItem.id)) {
+    // Gemini 3 Pro supports up to 14 images, others support up to 3
+    const maxImages = selectedModelId.includes('gemini-3-pro') ? 14 : 3;
+    
+    if (inputImageIds.length < maxImages && !inputImageIds.includes(mediaItem.id)) {
       setInputImageIds([...inputImageIds, mediaItem.id]);
     }
   };
@@ -240,6 +245,8 @@ export function GenerationDialog({
           images: inputImagesData.length > 0 ? inputImagesData : undefined,
           aspectRatio,
           outputFormat,
+          modelId: selectedModelId,
+          imageSize: imageResolution,
         });
       } else {
         // Wavespeed models
@@ -318,6 +325,11 @@ export function GenerationDialog({
     if (selectedModel?.provider === 'gemini') {
       const aspectOption = ASPECT_RATIO_OPTIONS.find(opt => opt.value === selectedAspectRatio);
       parts.push(`Aspect: ${aspectOption?.label || selectedAspectRatio}`);
+      
+      // Add resolution for Gemini 3 Pro
+      if (selectedModelId.includes('gemini-3-pro')) {
+        parts.push(`Resolution: ${imageResolution}`);
+      }
     } else {
       const sizeValue = selectedSize === 'custom' ? customSize : selectedSize;
       parts.push(`Size: ${sizeValue}`);
@@ -387,28 +399,35 @@ export function GenerationDialog({
                         </Button>
                       </div>
                     ))}
-                    {inputImageIds.length < 3 && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => selectedModel?.supportsImageInput && setShowMediaPicker(true)}
-                            disabled={!selectedModel?.supportsImageInput}
-                            className={`w-10 h-10 border-2 border-dashed rounded flex items-center justify-center flex-shrink-0 transition-colors ${
-                              selectedModel?.supportsImageInput
-                                ? 'border-gray-700 hover:border-gray-500 cursor-pointer'
-                                : 'border-gray-800 cursor-not-allowed opacity-50'
-                            }`}
-                          >
-                            <Plus className="h-4 w-4 text-gray-500" />
-                          </button>
-                        </TooltipTrigger>
-                        {!selectedModel?.supportsImageInput && (
-                          <TooltipContent>
-                            <p>Select an image-to-image model to add input images</p>
-                          </TooltipContent>
-                        )}
-                      </Tooltip>
-                    )}
+                    {(() => {
+                      const maxImages = selectedModelId.includes('gemini-3-pro') ? 14 : 3;
+                      return inputImageIds.length < maxImages && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => selectedModel?.supportsImageInput && setShowMediaPicker(true)}
+                              disabled={!selectedModel?.supportsImageInput}
+                              className={`w-10 h-10 border-2 border-dashed rounded flex items-center justify-center flex-shrink-0 transition-colors ${
+                                selectedModel?.supportsImageInput
+                                  ? 'border-gray-700 hover:border-gray-500 cursor-pointer'
+                                  : 'border-gray-800 cursor-not-allowed opacity-50'
+                              }`}
+                            >
+                              <Plus className="h-4 w-4 text-gray-500" />
+                            </button>
+                          </TooltipTrigger>
+                          {!selectedModel?.supportsImageInput ? (
+                            <TooltipContent>
+                              <p>Select an image-to-image model to add input images</p>
+                            </TooltipContent>
+                          ) : (
+                            <TooltipContent>
+                              <p>Add input image ({inputImageIds.length}/{maxImages})</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      );
+                    })()}
                   </div>
                 </TooltipProvider>
 
@@ -462,9 +481,21 @@ export function GenerationDialog({
                           </SelectContent>
                         </Select>
                         {selectedModel?.provider === 'gemini' && (
-                          <p className="text-xs text-gray-500">
-                            Note: Output format is determined by Gemini
-                          </p>
+                          <div className="space-y-1">
+                            <p className="text-xs text-gray-500">
+                              Supports both text-to-image and image editing. Add images for editing, or leave empty for text-to-image.
+                            </p>
+                            {selectedModelId.includes('gemini-3-pro') && (
+                              <p className="text-xs text-blue-500">
+                                ⭐ Nano Banana Pro: High-res (up to 4K), up to 14 input images, advanced reasoning
+                              </p>
+                            )}
+                            {selectedModelId.includes('gemini-2.5-flash') && (
+                              <p className="text-xs text-blue-500">
+                                ⚡ Fast generation, up to 3 input images
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
 
@@ -484,6 +515,26 @@ export function GenerationDialog({
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+                      )}
+
+                      {/* Image Resolution for Gemini 3 Pro models */}
+                      {selectedModel?.provider === 'gemini' && selectedModelId.includes('gemini-3-pro') && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Resolution</label>
+                          <Select value={imageResolution} onValueChange={(v) => setImageResolution(v as '1K' | '2K' | '4K')}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1K">1K (Standard)</SelectItem>
+                              <SelectItem value="2K">2K (High Quality)</SelectItem>
+                              <SelectItem value="4K">4K (Ultra HD)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-gray-500">
+                            Higher resolutions take longer and cost more tokens
+                          </p>
                         </div>
                       )}
 
